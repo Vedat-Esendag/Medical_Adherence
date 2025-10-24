@@ -20,7 +20,8 @@ data class DayBar(
 data class StatsUiState(
     val weeklyPercentage: Int = 0,
     val dailyBars: List<DayBar> = emptyList(),
-    val feedbackMessage: String = ""
+    val feedbackMessage: String = "",
+    val streakDays: Int = 0
 )
 
 class StatsViewModel(
@@ -55,10 +56,22 @@ class StatsViewModel(
                 else -> "Let's work on building a better routine together."
             }
 
+            // Calculate streak: consecutive days with >= 80% adherence from today backwards
+            val sortedDays = dailyAdherence.entries.sortedByDescending { it.key }
+            var streak = 0
+            for ((_, percentage) in sortedDays) {
+                if (percentage >= 80) {
+                    streak++
+                } else {
+                    break
+                }
+            }
+
             _uiState.value = StatsUiState(
                 weeklyPercentage = weeklyPercentage,
                 dailyBars = dailyBars,
-                feedbackMessage = feedback
+                feedbackMessage = feedback,
+                streakDays = streak
             )
         }
     }
