@@ -1,6 +1,8 @@
 package com.example.medicaladherence.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,10 +29,23 @@ fun AddEditMedicationScreen(
     LaunchedEffect(medicationId) {
         if (medicationId != null) {
             viewModel.loadMedication(medicationId)
+        } else {
+            viewModel.reset()
         }
     }
+
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show snackbar when saved successfully
+    LaunchedEffect(uiState.savedSuccessfully) {
+        if (uiState.savedSuccessfully) {
+            snackbarHostState.showSnackbar(
+                message = "Medication saved ✓",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
 
     var showTimePicker by remember { mutableStateOf(false) }
     val timePickerState = rememberTimePickerState()
@@ -46,51 +61,100 @@ fun AddEditMedicationScreen(
                 }
             )
         },
+        bottomBar = {
+            // BUTTONS IN BOTTOM BAR (ALWAYS VISIBLE)
+            Surface(
+                tonalElevation = 3.dp,
+                shadowElevation = 3.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text("Cancel", style = MaterialTheme.typography.labelLarge)
+                    }
+
+                    Button(
+                        onClick = {
+                            val saved = if (medicationId != null) {
+                                viewModel.saveWithId(medicationId)
+                            } else {
+                                viewModel.save()
+                            }
+                            if (saved) {
+                                onNavigateBack()
+                            }
+                        },
+                        enabled = uiState.isValid,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text("Save", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Enter your medication details",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            item {
+                Text(
+                    text = "Enter your medication details",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-            OutlinedTextField(
+            item {
+                OutlinedTextField(
                 value = uiState.name,
                 onValueChange = { viewModel.updateName(it) },
                 label = { Text("Medication Name") },
                 placeholder = { Text("e.g., Amlodipine") },
                 isError = uiState.nameError != null,
                 supportingText = uiState.nameError?.let { { Text(it) } },
-                modifier = Modifier.fillMaxWidth()
-            )
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+                )
+            }
 
-            OutlinedTextField(
+            item {
+                OutlinedTextField(
                 value = uiState.dosage,
                 onValueChange = { viewModel.updateDosage(it) },
                 label = { Text("Dosage") },
                 placeholder = { Text("e.g., 5 mg") },
                 isError = uiState.dosageError != null,
                 supportingText = uiState.dosageError?.let { { Text(it) } },
-                modifier = Modifier.fillMaxWidth()
-            )
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+                )
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            item {
+                Text(
+                    text = "Frequency",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
 
-            // Frequency selector
-            Text(
-                text = "Frequency",
-                style = MaterialTheme.typography.labelLarge
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 MedicationFrequency.values().forEach { freq ->
                     Row(
                         modifier = Modifier
@@ -119,18 +183,19 @@ fun AddEditMedicationScreen(
                         )
                     }
                 }
+                }
             }
 
             // Show day selector if SpecificDays is selected
             if (uiState.frequency == MedicationFrequency.SpecificDays) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Select days:",
-                    style = MaterialTheme.typography.labelMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                item {
+                    Text(
+                        text = "Select days:",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
+                    Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -144,12 +209,12 @@ fun AddEditMedicationScreen(
                         )
                     }
                 }
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Times section with chips and add button
-            Column {
+            item {
+                // Times section with chips and add button
+                Column {
                 Text(
                     text = "Times",
                     style = MaterialTheme.typography.labelLarge,
@@ -204,51 +269,20 @@ fun AddEditMedicationScreen(
                         modifier = Modifier.padding(start = 16.dp, top = 4.dp)
                     )
                 }
+                }
             }
 
-            OutlinedTextField(
+            item {
+                OutlinedTextField(
                 value = uiState.notes,
                 onValueChange = { viewModel.updateNotes(it) },
                 label = { Text("Notes (optional)") },
                 placeholder = { Text("e.g., Take with food") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onNavigateBack,
                     modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                ) {
-                    Text("Cancel")
-                }
-
-                Button(
-                    onClick = {
-                        val saved = if (medicationId != null) {
-                            viewModel.saveWithId(medicationId)
-                        } else {
-                            viewModel.save()
-                        }
-
-                        if (saved) {
-                            onNavigateBack()
-                        }
-                    },
-                    enabled = uiState.isValid,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                ) {
-                    Text("Save")
-                }
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    maxLines = 4
+                )
             }
         }
 

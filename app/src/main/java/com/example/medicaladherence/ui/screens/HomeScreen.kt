@@ -139,6 +139,22 @@ fun HomeScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )
+
+                                // Show "Take Now" button if within dose window
+                                if (uiState.isInDoseWindow) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = {
+                                            viewModel.markTaken(
+                                                uiState.nextDoseMedicationId,
+                                                uiState.nextDoseTime
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Take Now")
+                                    }
+                                }
                             } else {
                                 // All done for today
                                 Text(

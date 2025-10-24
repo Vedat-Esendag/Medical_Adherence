@@ -173,9 +173,22 @@ fun MedicationLibraryCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Show ALL times (not just one)
                 medication.times.forEach { time ->
                     Text(
-                        text = "• Daily at $time",
+                        text = "• ${
+                            when (medication.frequency) {
+                                com.example.medicaladherence.data.model.MedicationFrequency.Daily -> "Daily"
+                                com.example.medicaladherence.data.model.MedicationFrequency.SpecificDays -> {
+                                    val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                                    medication.specificDays.map { dayNames[it - 1] }.joinToString(", ")
+                                }
+                                com.example.medicaladherence.data.model.MedicationFrequency.Weekly -> "Weekly"
+                                com.example.medicaladherence.data.model.MedicationFrequency.EveryXDays -> "Every X days"
+                                com.example.medicaladherence.data.model.MedicationFrequency.AsNeeded -> "As needed"
+                            }
+                        } at $time",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

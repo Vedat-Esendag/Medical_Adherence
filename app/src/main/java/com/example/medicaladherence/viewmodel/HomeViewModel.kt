@@ -23,7 +23,9 @@ data class HomeUiState(
     val todayDoses: List<DoseItem> = emptyList(),
     val weeklyAdherencePercent: Int = 0,
     val streakDays: Int = 0,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    val isInDoseWindow: Boolean = false,
+    val nextDoseMedicationId: String = ""
 )
 
 data class DoseItem(
@@ -95,11 +97,17 @@ class HomeViewModel(
                 String.format("%02d:%02d", 0, minutes)
             }
 
+            // Check if within 30-minute window
+            val totalMinutes = duration.toMinutes()
+            val isInWindow = totalMinutes <= 30 && totalMinutes >= -30
+
             _uiState.value = _uiState.value.copy(
                 nextDoseCountdown = countdown,
                 nextDoseName = nextDose.medication.name,
                 nextDoseDosage = nextDose.medication.dosage,
-                nextDoseTime = nextDose.time
+                nextDoseTime = nextDose.time,
+                isInDoseWindow = isInWindow,
+                nextDoseMedicationId = nextDose.medication.id
             )
         } else {
             // No future doses today
@@ -107,7 +115,9 @@ class HomeViewModel(
                 nextDoseCountdown = "All done!",
                 nextDoseName = "",
                 nextDoseDosage = "",
-                nextDoseTime = ""
+                nextDoseTime = "",
+                isInDoseWindow = false,
+                nextDoseMedicationId = ""
             )
         }
     }

@@ -20,7 +20,8 @@ data class AddMedicationUiState(
     val nameError: String? = null,
     val dosageError: String? = null,
     val timesError: String? = null,
-    val isValid: Boolean = false
+    val isValid: Boolean = false,
+    val savedSuccessfully: Boolean = false
 )
 
 class AddMedicationViewModel(
@@ -145,6 +146,7 @@ class AddMedicationViewModel(
 
         repository.addOrUpdateMedication(medication)
         println("DEBUG Save - Medication saved: ${medication.id}")
+        _uiState.value = _uiState.value.copy(savedSuccessfully = true)
         return true
     }
 
@@ -168,6 +170,7 @@ class AddMedicationViewModel(
         )
 
         repository.addOrUpdateMedication(medication)
+        _uiState.value = _uiState.value.copy(savedSuccessfully = true)
         return true
     }
 }
