@@ -72,19 +72,28 @@ class HomeViewModel(
         val now = LocalTime.now()
         val formatter = DateTimeFormatter.ofPattern("HH:mm")
 
-        // Find the next upcoming dose
+        // Find next FUTURE dose (not taken and time is after now)
         val nextDose = _uiState.value.todayDoses
-            .filter { it.taken != true } // Not yet taken
+            .filter { it.taken != true } // Not marked as taken
+            .filter {
+                val doseTime = LocalTime.parse(it.time, formatter)
+                doseTime.isAfter(now) // ONLY future doses
+            }
             .minByOrNull {
                 LocalTime.parse(it.time, formatter)
-                    .let { time -> if (time.isBefore(now)) time.plusHours(24) else time }
             }
 
         if (nextDose != null) {
             val doseTime = LocalTime.parse(nextDose.time, formatter)
-            val minutesUntil = java.time.Duration.between(now, doseTime).toMinutes()
-            val secondsUntil = java.time.Duration.between(now, doseTime).seconds % 60
-            val countdown = String.format("%02d:%02d", minutesUntil, secondsUntil)
+            val duration = java.time.Duration.between(now, doseTime)
+            val hours = duration.toHours()
+            val minutes = duration.toMinutes() % 60
+
+            val countdown = if (hours > 0) {
+                String.format("%d:%02d", hours, minutes)
+            } else {
+                String.format("%02d:%02d", 0, minutes)
+            }
 
             _uiState.value = _uiState.value.copy(
                 nextDoseCountdown = countdown,
@@ -93,6 +102,7 @@ class HomeViewModel(
                 nextDoseTime = nextDose.time
             )
         } else {
+            // No future doses today
             _uiState.value = _uiState.value.copy(
                 nextDoseCountdown = "All done!",
                 nextDoseName = "",

@@ -29,7 +29,7 @@ fun MedicationsLibraryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Medications") }
+                title = { Text("My Medications (${medications.size})") }
             )
         },
         floatingActionButton = {
@@ -70,18 +70,14 @@ fun MedicationsLibraryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp,
+                    bottom = 80.dp  // Clears bottom nav + FAB
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item {
-                    Text(
-                        text = "All Medications (${medications.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
                 items(medications) { medication ->
                     MedicationLibraryCard(
                         medication = medication,
@@ -160,8 +156,8 @@ fun MedicationLibraryCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = medication.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = medication.dosage,

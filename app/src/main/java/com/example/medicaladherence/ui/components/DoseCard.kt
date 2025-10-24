@@ -82,7 +82,7 @@ fun DoseCard(
                 Text(
                     text = dose.medication.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${dose.medication.dosage} at ${dose.time}",
@@ -135,19 +135,27 @@ fun DoseCard(
                     label = {
                         Text(
                             text = if (dose.taken == true) "✓ Taken" else "Missed",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = if (dose.taken == true)
                             MaterialTheme.colorScheme.primaryContainer
                         else
-                            MaterialTheme.colorScheme.surfaceVariant
+                            MaterialTheme.colorScheme.surfaceVariant,
+                        labelColor = if (dose.taken == true)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
 
                 TextButton(onClick = onUndo) {
-                    Text("Undo")
+                    Text(
+                        "Undo",
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         } else {
