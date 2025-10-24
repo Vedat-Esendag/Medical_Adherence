@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.repo.InMemoryMedicationRepository
+import com.example.medicaladherence.data.repo.RepositoryProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +17,9 @@ import java.time.format.DateTimeFormatter
 data class HomeUiState(
     val todayDate: LocalDate = LocalDate.now(),
     val nextDoseCountdown: String = "--:--",
+    val nextDoseName: String = "",
+    val nextDoseDosage: String = "",
+    val nextDoseTime: String = "",
     val todayDoses: List<DoseItem> = emptyList(),
     val weeklyAdherencePercent: Int = 0,
     val streakDays: Int = 0,
@@ -29,7 +33,7 @@ data class DoseItem(
 )
 
 class HomeViewModel(
-    private val repository: InMemoryMedicationRepository = InMemoryMedicationRepository()
+    private val repository: InMemoryMedicationRepository = RepositoryProvider.repository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -71,19 +75,31 @@ class HomeViewModel(
         // Find the next upcoming dose
         val nextDose = _uiState.value.todayDoses
             .filter { it.taken != true } // Not yet taken
-            .map { LocalTime.parse(it.time, formatter) }
-            .filter { it.isAfter(now) }
-            .minOrNull()
+            .minByOrNull {
+                LocalTime.parse(it.time, formatter)
+                    .let { time -> if (time.isBefore(now)) time.plusHours(24) else time }
+            }
 
-        val countdown = if (nextDose != null) {
-            val minutesUntil = java.time.Duration.between(now, nextDose).toMinutes()
-            val secondsUntil = java.time.Duration.between(now, nextDose).seconds % 60
-            String.format("%02d:%02d", minutesUntil, secondsUntil)
+        if (nextDose != null) {
+            val doseTime = LocalTime.parse(nextDose.time, formatter)
+            val minutesUntil = java.time.Duration.between(now, doseTime).toMinutes()
+            val secondsUntil = java.time.Duration.between(now, doseTime).seconds % 60
+            val countdown = String.format("%02d:%02d", minutesUntil, secondsUntil)
+
+            _uiState.value = _uiState.value.copy(
+                nextDoseCountdown = countdown,
+                nextDoseName = nextDose.medication.name,
+                nextDoseDosage = nextDose.medication.dosage,
+                nextDoseTime = nextDose.time
+            )
         } else {
-            "--:--"
+            _uiState.value = _uiState.value.copy(
+                nextDoseCountdown = "All done!",
+                nextDoseName = "",
+                nextDoseDosage = "",
+                nextDoseTime = ""
+            )
         }
-
-        _uiState.value = _uiState.value.copy(nextDoseCountdown = countdown)
     }
 
     fun markTaken(medId: String, time: String) {
@@ -101,6 +117,18 @@ class HomeViewModel(
     fun snooze15(medId: String, time: String) {
         repository.snooze(medId, time, 15)
         showSnackbar("Snoozed for 15 minutes")
+    }
+
+    fun undoLastAction() {
+        repository.undoLastAction()
+        loadData()
+        showSnackbar("Action undone")
+    }
+
+    fun deleteMedication(medId: String) {
+        repository.deleteMedication(medId)
+        loadData()
+        showSnackbar("Medication deleted")
     }
 
     private fun showSnackbar(message: String) {

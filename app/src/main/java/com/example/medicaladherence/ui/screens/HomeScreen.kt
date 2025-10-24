@@ -23,17 +23,25 @@ import com.example.medicaladherence.viewmodel.HomeViewModel
 @Composable
 fun HomeScreen(
     onNavigateToAdd: () -> Unit,
-    onNavigateToStats: () -> Unit,
-    onNavigateToSettings: () -> Unit = {},
+    onNavigateToEdit: (String) -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = androidx.compose.material3.SnackbarHostState()
 
-    // Show snackbar when message is present
+    // Show snackbar when message is present with Undo action
     LaunchedEffect(uiState.snackbarMessage) {
         uiState.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoLastAction()
+            }
+
             viewModel.clearSnackbar()
         }
     }
@@ -41,12 +49,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Medical Adherence") },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                }
+                title = { Text("Medical Adherence") }
             )
         },
         floatingActionButton = {
@@ -105,16 +108,30 @@ fun HomeScreen(
                                 .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text(
-                                text = "Next dose in",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = uiState.nextDoseCountdown,
-                                style = MaterialTheme.typography.displayMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            if (uiState.nextDoseName.isNotEmpty()) {
+                                Text(
+                                    text = "Next dose in",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = uiState.nextDoseCountdown,
+                                    style = MaterialTheme.typography.displayMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${uiState.nextDoseName} ${uiState.nextDoseDosage} at ${uiState.nextDoseTime}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            } else {
+                                Text(
+                                    text = "All doses completed for today! ✓",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 horizontalArrangement = Arrangement.Center,
@@ -135,10 +152,6 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextButton(onClick = onNavigateToStats) {
-                                Text("View detailed stats")
-                            }
                         }
                     }
                 }
@@ -157,7 +170,10 @@ fun HomeScreen(
                         dose = dose,
                         onTaken = { viewModel.markTaken(dose.medication.id, dose.time) },
                         onMissed = { viewModel.markMissed(dose.medication.id, dose.time) },
-                        onSnooze = { viewModel.snooze15(dose.medication.id, dose.time) }
+                        onSnooze = { viewModel.snooze15(dose.medication.id, dose.time) },
+                        onUndo = { viewModel.undoLastAction() },
+                        onEdit = { onNavigateToEdit(dose.medication.id) },
+                        onDelete = { viewModel.deleteMedication(dose.medication.id) }
                     )
                 }
             }

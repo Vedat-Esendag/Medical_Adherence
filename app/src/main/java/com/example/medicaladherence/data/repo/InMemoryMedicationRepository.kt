@@ -10,6 +10,16 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
+ * Represents the last action performed, allowing for undo functionality
+ */
+data class LastAction(
+    val medId: String,
+    val date: LocalDate,
+    val time: String,
+    val previousTaken: Boolean?
+)
+
+/**
  * In-memory repository for medications and dose events.
  * Contains seed data for Maria and Ahmed with ~80% adherence for the past week.
  */
@@ -20,6 +30,9 @@ class InMemoryMedicationRepository {
 
     private val _events = MutableStateFlow<List<DoseEvent>>(emptyList())
     val events: StateFlow<List<DoseEvent>> = _events.asStateFlow()
+
+    private val _lastAction = MutableStateFlow<LastAction?>(null)
+    val lastAction: StateFlow<LastAction?> = _lastAction.asStateFlow()
 
     init {
         seedData()
@@ -36,21 +49,24 @@ class InMemoryMedicationRepository {
                 name = "Amlodipine",
                 dosage = "5 mg",
                 times = listOf("07:00"),
-                notes = "Take with water in the morning"
+                notes = "Take with water in the morning",
+                frequency = com.example.medicaladherence.data.model.MedicationFrequency.Daily
             ),
             Medication(
                 id = "maria-2",
                 name = "Metoprolol",
                 dosage = "50 mg",
                 times = listOf("19:00"),
-                notes = "Take with dinner"
+                notes = "Take with dinner",
+                frequency = com.example.medicaladherence.data.model.MedicationFrequency.Daily
             ),
             Medication(
                 id = "maria-3",
                 name = "Aspirin",
                 dosage = "81 mg",
                 times = listOf("21:00"),
-                notes = "Low-dose for heart health"
+                notes = "Low-dose for heart health",
+                frequency = com.example.medicaladherence.data.model.MedicationFrequency.Daily
             )
         )
 
@@ -61,14 +77,16 @@ class InMemoryMedicationRepository {
                 name = "Mesalamine",
                 dosage = "800 mg",
                 times = listOf("08:00"),
-                notes = "For IBD management"
+                notes = "For IBD management",
+                frequency = com.example.medicaladherence.data.model.MedicationFrequency.Daily
             ),
             Medication(
                 id = "ahmed-2",
                 name = "Azathioprine",
                 dosage = "50 mg",
                 times = listOf("22:00"),
-                notes = "Immunosuppressant - take at bedtime"
+                notes = "Immunosuppressant - take at bedtime",
+                frequency = com.example.medicaladherence.data.model.MedicationFrequency.Daily
             )
         )
 
@@ -134,6 +152,14 @@ class InMemoryMedicationRepository {
             it.medId == medId && it.date == date && it.time == time
         }
 
+        // Store previous state for undo
+        val previousTaken = if (existingIndex >= 0) {
+            currentEvents[existingIndex].taken
+        } else {
+            null
+        }
+        _lastAction.value = LastAction(medId, date, time, previousTaken)
+
         val event = DoseEvent(medId = medId, date = date, time = time, taken = taken)
 
         if (existingIndex >= 0) {
@@ -143,6 +169,48 @@ class InMemoryMedicationRepository {
         }
 
         _events.value = currentEvents
+    }
+
+    /**
+     * Undo the last action
+     */
+    fun undoLastAction() {
+        val action = _lastAction.value ?: return
+
+        val currentEvents = _events.value.toMutableList()
+        val existingIndex = currentEvents.indexOfFirst {
+            it.medId == action.medId && it.date == action.date && it.time == action.time
+        }
+
+        if (action.previousTaken == null) {
+            // Remove the event if it didn't exist before
+            if (existingIndex >= 0) {
+                currentEvents.removeAt(existingIndex)
+            }
+        } else {
+            // Restore previous state
+            val event = DoseEvent(
+                medId = action.medId,
+                date = action.date,
+                time = action.time,
+                taken = action.previousTaken
+            )
+            if (existingIndex >= 0) {
+                currentEvents[existingIndex] = event
+            } else {
+                currentEvents.add(event)
+            }
+        }
+
+        _events.value = currentEvents
+        _lastAction.value = null
+    }
+
+    /**
+     * Get a medication by ID
+     */
+    fun getMedicationById(id: String): Medication? {
+        return _medications.value.find { it.id == id }
     }
 
     /**
