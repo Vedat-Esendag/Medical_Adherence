@@ -40,7 +40,7 @@ fun HomeScreen(
             )
 
             if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoLastAction()
+                viewModel.undoLastMarkedDose()
             }
 
             viewModel.clearSnackbar()
@@ -226,7 +226,7 @@ fun HomeScreen(
                         onTaken = { viewModel.markTaken(dose.medication.id, dose.time) },
                         onMissed = { viewModel.markMissed(dose.medication.id, dose.time) },
                         onSnooze = { viewModel.snooze15(dose.medication.id, dose.time) },
-                        onUndo = { viewModel.undoLastAction() },
+                        onUndo = { viewModel.undoDose(dose.medication.id, dose.time) },
                         onEdit = { onNavigateToEdit(dose.medication.id) },
                         onDelete = { viewModel.deleteMedication(dose.medication.id) }
                     )

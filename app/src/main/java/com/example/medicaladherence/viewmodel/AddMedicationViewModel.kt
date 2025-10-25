@@ -1,13 +1,15 @@
 package com.example.medicaladherence.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.model.MedicationFrequency
-import com.example.medicaladherence.data.repo.InMemoryMedicationRepository
 import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.MedicationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 data class AddMedicationUiState(
@@ -25,7 +27,7 @@ data class AddMedicationUiState(
 )
 
 class AddMedicationViewModel(
-    private val repository: InMemoryMedicationRepository = RepositoryProvider.repository
+    private val repository: MedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddMedicationUiState())
@@ -108,17 +110,19 @@ class AddMedicationViewModel(
     }
 
     fun loadMedication(medId: String) {
-        val medication = repository.getMedicationById(medId)
-        if (medication != null) {
-            _uiState.value = _uiState.value.copy(
-                name = medication.name,
-                dosage = medication.dosage,
-                times = medication.times,
-                notes = medication.notes ?: "",
-                frequency = medication.frequency,
-                specificDays = medication.specificDays
-            )
-            validate()
+        viewModelScope.launch {
+            val medication = repository.getMedicationById(medId)
+            if (medication != null) {
+                _uiState.value = _uiState.value.copy(
+                    name = medication.name,
+                    dosage = medication.dosage,
+                    times = medication.times,
+                    notes = medication.notes ?: "",
+                    frequency = medication.frequency,
+                    specificDays = medication.specificDays
+                )
+                validate()
+            }
         }
     }
 
@@ -144,9 +148,11 @@ class AddMedicationViewModel(
             specificDays = state.specificDays
         )
 
-        repository.addOrUpdateMedication(medication)
-        println("DEBUG Save - Medication saved: ${medication.id}")
-        _uiState.value = _uiState.value.copy(savedSuccessfully = true)
+        viewModelScope.launch {
+            repository.addOrUpdateMedication(medication)
+            println("DEBUG Save - Medication saved: ${medication.id}")
+            _uiState.value = _uiState.value.copy(savedSuccessfully = true)
+        }
         return true
     }
 
@@ -169,8 +175,10 @@ class AddMedicationViewModel(
             specificDays = state.specificDays
         )
 
-        repository.addOrUpdateMedication(medication)
-        _uiState.value = _uiState.value.copy(savedSuccessfully = true)
+        viewModelScope.launch {
+            repository.addOrUpdateMedication(medication)
+            _uiState.value = _uiState.value.copy(savedSuccessfully = true)
+        }
         return true
     }
 }

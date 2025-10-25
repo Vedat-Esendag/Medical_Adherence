@@ -2,8 +2,8 @@ package com.example.medicaladherence.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.medicaladherence.data.repo.InMemoryMedicationRepository
 import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.MedicationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +25,7 @@ data class StatsUiState(
 )
 
 class StatsViewModel(
-    private val repository: InMemoryMedicationRepository = RepositoryProvider.repository
+    private val repository: MedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatsUiState())

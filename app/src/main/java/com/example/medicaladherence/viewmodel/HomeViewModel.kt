@@ -3,8 +3,8 @@ package com.example.medicaladherence.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
-import com.example.medicaladherence.data.repo.InMemoryMedicationRepository
 import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.MedicationRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +25,8 @@ data class HomeUiState(
     val streakDays: Int = 0,
     val snackbarMessage: String? = null,
     val isInDoseWindow: Boolean = false,
-    val nextDoseMedicationId: String = ""
+    val nextDoseMedicationId: String = "",
+    val lastMarkedDose: Pair<String, String>? = null // medId to time
 )
 
 data class DoseItem(
@@ -35,7 +36,7 @@ data class DoseItem(
 )
 
 class HomeViewModel(
-    private val repository: InMemoryMedicationRepository = RepositoryProvider.repository
+    private val repository: MedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -49,7 +50,7 @@ class HomeViewModel(
     private fun loadData() {
         viewModelScope.launch {
             // Combine data from repository
-            val doses = repository.todayDoses().map { (med, time, taken) ->
+            val doses = repository.getTodayDoses().map { (med, time, taken) ->
                 DoseItem(medication = med, time = time, taken = taken)
             }
 
@@ -123,15 +124,21 @@ class HomeViewModel(
     }
 
     fun markTaken(medId: String, time: String) {
-        repository.markDose(medId, LocalDate.now(), time, taken = true)
-        loadData()
-        showSnackbar("Dose marked as taken")
+        viewModelScope.launch {
+            repository.markDose(medId, LocalDate.now(), time, taken = true)
+            _uiState.value = _uiState.value.copy(lastMarkedDose = medId to time)
+            loadData()
+            showSnackbar("Dose marked as taken")
+        }
     }
 
     fun markMissed(medId: String, time: String) {
-        repository.markDose(medId, LocalDate.now(), time, taken = false)
-        loadData()
-        showSnackbar("Dose marked as missed")
+        viewModelScope.launch {
+            repository.markDose(medId, LocalDate.now(), time, taken = false)
+            _uiState.value = _uiState.value.copy(lastMarkedDose = medId to time)
+            loadData()
+            showSnackbar("Dose marked as missed")
+        }
     }
 
     fun snooze15(medId: String, time: String) {
@@ -139,16 +146,26 @@ class HomeViewModel(
         showSnackbar("Snoozed for 15 minutes")
     }
 
-    fun undoLastAction() {
-        repository.undoLastAction()
-        loadData()
-        showSnackbar("Action undone")
+    fun undoDose(medId: String, time: String) {
+        viewModelScope.launch {
+            repository.undoDose(medId, LocalDate.now(), time)
+            _uiState.value = _uiState.value.copy(lastMarkedDose = null)
+            loadData()
+            showSnackbar("Action undone")
+        }
+    }
+
+    fun undoLastMarkedDose() {
+        val lastMarked = _uiState.value.lastMarkedDose ?: return
+        undoDose(lastMarked.first, lastMarked.second)
     }
 
     fun deleteMedication(medId: String) {
-        repository.deleteMedication(medId)
-        loadData()
-        showSnackbar("Medication deleted")
+        viewModelScope.launch {
+            repository.deleteMedication(medId)
+            loadData()
+            showSnackbar("Medication deleted")
+        }
     }
 
     private fun showSnackbar(message: String) {
