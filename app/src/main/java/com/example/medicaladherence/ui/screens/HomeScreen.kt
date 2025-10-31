@@ -13,12 +13,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.medicaladherence.ui.components.DoseCard
+import com.example.medicaladherence.ui.components.PinEntryDialog
 import com.example.medicaladherence.viewmodel.HomeViewModel
+import com.example.medicaladherence.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,8 +33,24 @@ fun HomeScreen(
     onNavigateToEdit: (String) -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+
+    // Initialize viewModel with context
+    LaunchedEffect(Unit) {
+        viewModel.initialize(context)
+    }
+
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = androidx.compose.material3.SnackbarHostState()
+
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val caretakerPin by settingsViewModel.caretakerPin.collectAsState()
+
+    var showEditPinDialog by remember { mutableStateOf(false) }
+    var showDeletePinDialog by remember { mutableStateOf(false) }
+    var showAddPinDialog by remember { mutableStateOf(false) }
+    var pendingEditMedId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteMedId by remember { mutableStateOf<String?>(null) }
 
     // Show snackbar when message is present with Undo action
     LaunchedEffect(uiState.snackbarMessage) {
@@ -54,7 +76,15 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAdd) {
+            FloatingActionButton(
+                onClick = {
+                    if (caretakerPin != null) {
+                        showAddPinDialog = true
+                    } else {
+                        onNavigateToAdd()
+                    }
+                }
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Medication")
             }
         },
@@ -83,7 +113,15 @@ fun HomeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onNavigateToAdd) {
+                Button(
+                    onClick = {
+                        if (caretakerPin != null) {
+                            showAddPinDialog = true
+                        } else {
+                            onNavigateToAdd()
+                        }
+                    }
+                ) {
                     Text("Add Medication")
                 }
             }
@@ -227,11 +265,70 @@ fun HomeScreen(
                         onMissed = { viewModel.markMissed(dose.medication.id, dose.time) },
                         onSnooze = { viewModel.snooze15(dose.medication.id, dose.time) },
                         onUndo = { viewModel.undoDose(dose.medication.id, dose.time) },
-                        onEdit = { onNavigateToEdit(dose.medication.id) },
-                        onDelete = { viewModel.deleteMedication(dose.medication.id) }
+                        onEdit = {
+                            if (caretakerPin != null) {
+                                pendingEditMedId = dose.medication.id
+                                showEditPinDialog = true
+                            } else {
+                                onNavigateToEdit(dose.medication.id)
+                            }
+                        },
+                        onDelete = {
+                            if (caretakerPin != null) {
+                                pendingDeleteMedId = dose.medication.id
+                                showDeletePinDialog = true
+                            } else {
+                                viewModel.deleteMedication(dose.medication.id)
+                            }
+                        }
                     )
                 }
             }
         }
+    }
+
+    // PIN Dialogs
+    if (showAddPinDialog) {
+        PinEntryDialog(
+            onDismiss = { showAddPinDialog = false },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showAddPinDialog = false
+                    onNavigateToAdd()
+                }
+            }
+        )
+    }
+
+    if (showEditPinDialog) {
+        PinEntryDialog(
+            onDismiss = {
+                showEditPinDialog = false
+                pendingEditMedId = null
+            },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showEditPinDialog = false
+                    pendingEditMedId?.let { onNavigateToEdit(it) }
+                    pendingEditMedId = null
+                }
+            }
+        )
+    }
+
+    if (showDeletePinDialog) {
+        PinEntryDialog(
+            onDismiss = {
+                showDeletePinDialog = false
+                pendingDeleteMedId = null
+            },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showDeletePinDialog = false
+                    pendingDeleteMedId?.let { viewModel.deleteMedication(it) }
+                    pendingDeleteMedId = null
+                }
+            }
+        )
     }
 }

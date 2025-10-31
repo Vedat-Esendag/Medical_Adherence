@@ -27,14 +27,43 @@ private val LightColorScheme = lightColorScheme(
     tertiary = CalmAccent40
 )
 
+private val HighContrastColorScheme = darkColorScheme(
+    primary = HighContrastPrimary,
+    onPrimary = HighContrastOnPrimary,
+    primaryContainer = HighContrastSurface,
+    onPrimaryContainer = HighContrastOnBackground,
+    secondary = HighContrastSecondary,
+    onSecondary = HighContrastOnSecondary,
+    secondaryContainer = HighContrastSurface,
+    onSecondaryContainer = HighContrastOnBackground,
+    tertiary = HighContrastSecondary,
+    onTertiary = HighContrastOnSecondary,
+    tertiaryContainer = HighContrastSurface,
+    onTertiaryContainer = HighContrastOnBackground,
+    error = HighContrastError,
+    onError = HighContrastOnPrimary,
+    errorContainer = HighContrastSurface,
+    onErrorContainer = HighContrastError,
+    background = HighContrastBackground,
+    onBackground = HighContrastOnBackground,
+    surface = HighContrastSurface,
+    onSurface = HighContrastOnSurface,
+    surfaceVariant = HighContrastSurface,
+    onSurfaceVariant = HighContrastOnSurface,
+    outline = HighContrastOutline,
+    outlineVariant = HighContrastOutline,
+)
+
 @Composable
 fun MedicalAdherenceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    highContrastMode: Boolean = false,
     dynamicColor: Boolean = true,
     fontScale: Float = 1.0f,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
+        highContrastMode -> HighContrastColorScheme
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
@@ -43,10 +72,16 @@ fun MedicalAdherenceTheme(
         else -> LightColorScheme
     }
 
+    val typography = if (highContrastMode) {
+        getScaledTypography(fontScale, highContrast = true)
+    } else {
+        getScaledTypography(fontScale)
+    }
+
     CompositionLocalProvider(LocalFontScale provides fontScale) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = getScaledTypography(fontScale),
+            typography = typography,
             content = content
         )
     }

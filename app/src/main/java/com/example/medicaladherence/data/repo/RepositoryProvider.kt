@@ -1,8 +1,10 @@
 package com.example.medicaladherence.data.repo
 
 import android.content.Context
-import com.example.medicaladherence.data.local.AppDatabase
-import com.example.medicaladherence.data.repository.MedicationRepository
+import com.example.medicaladherence.data.firebase.FirebaseAuthManager
+import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
 
 /**
  * Singleton provider for the medication repository.
@@ -10,12 +12,24 @@ import com.example.medicaladherence.data.repository.MedicationRepository
  */
 object RepositoryProvider {
     @Volatile
-    private var repository: MedicationRepository? = null
+    private var repository: FirebaseMedicationRepository? = null
 
-    fun provideRepository(context: Context): MedicationRepository {
+    @Volatile
+    private var authManager: FirebaseAuthManager? = null
+
+    fun provideRepository(context: Context): FirebaseMedicationRepository {
         return repository ?: synchronized(this) {
-            val database = AppDatabase.getDatabase(context)
-            val newRepo = MedicationRepository(database)
+            val auth = authManager ?: FirebaseAuthManager.getInstance().also { authManager = it }
+
+            // Initialize Firestore (offline persistence is enabled by default in newer versions)
+            val firestore = FirebaseFirestore.getInstance()
+
+            // Log network connectivity for debugging multi-emulator setup
+            firestore.addSnapshotsInSyncListener {
+                android.util.Log.d("FirebaseRepo", "Firestore synced with backend")
+            }
+
+            val newRepo = FirebaseMedicationRepository(firestore, auth)
             repository = newRepo
             newRepo
         }
@@ -25,9 +39,16 @@ object RepositoryProvider {
      * Get the repository instance. Must be initialized first via provideRepository().
      * Throws exception if repository hasn't been initialized.
      */
-    fun getRepository(): MedicationRepository {
+    fun getRepository(): FirebaseMedicationRepository {
         return repository ?: throw IllegalStateException(
             "Repository not initialized. Call provideRepository() first."
         )
+    }
+
+    /**
+     * Get the Firebase auth manager instance.
+     */
+    fun getAuthManager(): FirebaseAuthManager {
+        return authManager ?: FirebaseAuthManager.getInstance().also { authManager = it }
     }
 }

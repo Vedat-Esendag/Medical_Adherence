@@ -1,11 +1,13 @@
 package com.example.medicaladherence.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.model.MedicationFrequency
 import com.example.medicaladherence.data.repo.RepositoryProvider
-import com.example.medicaladherence.data.repository.MedicationRepository
+import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.notification.NotificationScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,11 +29,17 @@ data class AddMedicationUiState(
 )
 
 class AddMedicationViewModel(
-    private val repository: MedicationRepository = RepositoryProvider.getRepository()
+    private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddMedicationUiState())
     val uiState: StateFlow<AddMedicationUiState> = _uiState.asStateFlow()
+
+    private lateinit var notificationScheduler: NotificationScheduler
+
+    fun initialize(context: Context) {
+        notificationScheduler = NotificationScheduler(context)
+    }
 
     fun updateName(name: String) {
         _uiState.value = _uiState.value.copy(name = name)
@@ -151,6 +159,12 @@ class AddMedicationViewModel(
         viewModelScope.launch {
             repository.addOrUpdateMedication(medication)
             println("DEBUG Save - Medication saved: ${medication.id}")
+
+            // Schedule notifications
+            if (::notificationScheduler.isInitialized) {
+                notificationScheduler.scheduleMedicationNotifications(medication)
+            }
+
             _uiState.value = _uiState.value.copy(savedSuccessfully = true)
         }
         return true
@@ -177,6 +191,12 @@ class AddMedicationViewModel(
 
         viewModelScope.launch {
             repository.addOrUpdateMedication(medication)
+
+            // Schedule notifications
+            if (::notificationScheduler.isInitialized) {
+                notificationScheduler.scheduleMedicationNotifications(medication)
+            }
+
             _uiState.value = _uiState.value.copy(savedSuccessfully = true)
         }
         return true

@@ -3,10 +3,11 @@ package com.example.medicaladherence.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.repo.RepositoryProvider
-import com.example.medicaladherence.data.repository.MedicationRepository
+import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -17,15 +18,27 @@ data class DayBar(
     val percentage: Int
 )
 
+data class MedicationAdherence(
+    val medicationName: String,
+    val dosage: String,
+    val percentage: Int,
+    val takenCount: Int,
+    val totalCount: Int
+)
+
 data class StatsUiState(
     val weeklyPercentage: Int = 0,
     val dailyBars: List<DayBar> = emptyList(),
     val feedbackMessage: String = "",
-    val streakDays: Int = 0
+    val streakDays: Int = 0,
+    val bestDay: String? = null,
+    val worstDay: String? = null,
+    val medicationBreakdown: List<MedicationAdherence> = emptyList(),
+    val timeOfDayInsight: String? = null
 )
 
 class StatsViewModel(
-    private val repository: MedicationRepository = RepositoryProvider.getRepository()
+    private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StatsUiState())
@@ -67,11 +80,56 @@ class StatsViewModel(
                 }
             }
 
+            // Calculate best and worst days
+            val bestDayEntry = dailyAdherence.maxByOrNull { it.value }
+            val worstDayEntry = dailyAdherence.minByOrNull { it.value }
+
+            val bestDay = bestDayEntry?.let { entry ->
+                val dayName = entry.key.dayOfWeek.getDisplayName(
+                    TextStyle.FULL,
+                    Locale.getDefault()
+                )
+                "$dayName (${entry.value}%)"
+            }
+
+            val worstDay = worstDayEntry?.let { entry ->
+                if (entry.value < 100) {
+                    val dayName = entry.key.dayOfWeek.getDisplayName(
+                        TextStyle.FULL,
+                        Locale.getDefault()
+                    )
+                    "$dayName (${entry.value}%)"
+                } else null
+            }
+
+            // Calculate per-medication breakdown
+            val medications = repository.medications.first()
+            val medicationBreakdown = mutableListOf<MedicationAdherence>()
+
+            val today = LocalDate.now()
+            val weekAgo = today.minusDays(6)
+
+            medications.forEach { med ->
+                val adherence = repository.calculateMedicationAdherence(
+                    medId = med.id,
+                    startDate = weekAgo,
+                    endDate = today
+                )
+                medicationBreakdown.add(adherence)
+            }
+
+            // Calculate time of day insight
+            val timeInsight = repository.calculateTimeOfDayInsight(weekAgo, today)
+
             _uiState.value = StatsUiState(
                 weeklyPercentage = weeklyPercentage,
                 dailyBars = dailyBars,
                 feedbackMessage = feedback,
-                streakDays = streak
+                streakDays = streak,
+                bestDay = bestDay,
+                worstDay = worstDay,
+                medicationBreakdown = medicationBreakdown.sortedByDescending { it.percentage },
+                timeOfDayInsight = timeInsight
             )
         }
     }

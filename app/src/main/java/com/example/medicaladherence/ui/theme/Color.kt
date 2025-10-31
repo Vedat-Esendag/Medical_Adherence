@@ -19,3 +19,15 @@ val Pink80 = Color(0xFFEFB8C8)
 val Purple40 = Color(0xFF6650a4)
 val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
+
+// High Contrast Theme Colors
+val HighContrastBackground = Color(0xFF000000) // Pure black
+val HighContrastSurface = Color(0xFF1A1A1A) // Very dark gray
+val HighContrastPrimary = Color(0xFFFFFFFF) // Pure white
+val HighContrastOnPrimary = Color(0xFF000000) // Black text on white
+val HighContrastSecondary = Color(0xFFFFEB3B) // Bright yellow
+val HighContrastOnSecondary = Color(0xFF000000) // Black text on yellow
+val HighContrastError = Color(0xFFFF0000) // Bright red
+val HighContrastOnBackground = Color(0xFFFFFFFF) // White text
+val HighContrastOnSurface = Color(0xFFFFFFFF) // White text
+val HighContrastOutline = Color(0xFFFFFFFF) // White borders

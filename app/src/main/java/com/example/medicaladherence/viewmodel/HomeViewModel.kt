@@ -1,10 +1,12 @@
 package com.example.medicaladherence.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.repo.RepositoryProvider
-import com.example.medicaladherence.data.repository.MedicationRepository
+import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.notification.NotificationScheduler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,11 +38,17 @@ data class DoseItem(
 )
 
 class HomeViewModel(
-    private val repository: MedicationRepository = RepositoryProvider.getRepository()
+    private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private lateinit var notificationScheduler: NotificationScheduler
+
+    fun initialize(context: Context) {
+        notificationScheduler = NotificationScheduler(context)
+    }
 
     init {
         loadData()
@@ -162,6 +170,12 @@ class HomeViewModel(
 
     fun deleteMedication(medId: String) {
         viewModelScope.launch {
+            // Cancel notifications first
+            if (::notificationScheduler.isInitialized) {
+                notificationScheduler.cancelNotifications(medId)
+            }
+
+            // Then delete medication
             repository.deleteMedication(medId)
             loadData()
             showSnackbar("Medication deleted")

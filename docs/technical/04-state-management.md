@@ -326,6 +326,262 @@ SettingsScreen(
 - Shared across all screens
 - Single source of truth
 
+## Shared ViewModel Pattern
+
+### Problem: Multiple ViewModel Instances
+When creating ViewModels independently in each screen, you get separate instances with isolated state:
+
+```kotlin
+// ❌ WRONG: Creates new instance
+@Composable
+fun SettingsScreen() {
+    val viewModel: SettingsViewModel = viewModel()  // New instance!
+    // State not shared with other screens
+}
+```
+
+**Issues**:
+- Profile data saved in one screen not visible in another
+- Duplicate loading from database
+- Inconsistent state across navigation
+- User sees empty/null values
+
+### Solution: Single Shared Instance
+
+**Create once at the app level**, pass through the tree:
+
+**Location**: `MainActivity.kt:56-58`
+```kotlin
+@Composable
+fun MedicalAdherenceApp(repository: FirebaseMedicationRepository) {
+    // Create ONCE at app level
+    val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = SettingsViewModelFactory(repository)
+    )
+    
+    // Pass to child composables
+    when (userProfile) {
+        "patient" -> {
+            PatientMainScreen(
+                settingsViewModel = settingsViewModel,  // Pass shared instance
+                onHighContrastChanged = { enabled ->
+                    settingsViewModel.setHighContrastMode(enabled)
+                }
+            )
+        }
+    }
+}
+```
+
+**Pass through navigation**:
+
+**Location**: `MainActivity.kt:92-94, 268-274`
+```kotlin
+@Composable
+fun PatientMainScreen(
+    settingsViewModel: SettingsViewModel,  // Required parameter, no default
+    onHighContrastChanged: (Boolean) -> Unit
+) {
+    // ...
+    
+    NavHost(navController = navController, startDestination = Routes.HOME) {
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onFontScaleChanged = { newScale -> fontScale = newScale },
+                onHighContrastChanged = onHighContrastChanged,
+                viewModel = settingsViewModel  // Pass shared instance
+            )
+        }
+    }
+}
+```
+
+**Screen receives shared instance**:
+
+**Location**: `SettingsScreen.kt:37`
+```kotlin
+@Composable
+fun SettingsScreen(
+    onNavigateBack: () -> Unit,
+    onFontScaleChanged: (Float) -> Unit,
+    onHighContrastChanged: (Boolean) -> Unit = {},
+    viewModel: SettingsViewModel  // No default = enforces shared instance
+)
+```
+
+**Benefits**:
+- ✅ Single source of truth for settings state
+- ✅ Profile data visible across all screens
+- ✅ No duplicate database queries
+- ✅ State survives navigation
+- ✅ Consistent user experience
+
+### When to Share ViewModels
+
+**Share when:**
+- Multiple screens need same data (Settings profile across app)
+- Data should persist across navigation (User profile, preferences)
+- Avoiding duplicate network/database calls
+
+**Don't share when:**
+- Screen-specific state (Home screen countdown timer)
+- Temporary form data (Add medication form)
+- Independent features (Statistics vs. Medications)
+
+## Defensive Profile Loading
+
+### Problem: Auto-Login from Stale Data
+After sign out, cached Firebase data might auto-load incomplete profiles:
+
+```kotlin
+// ❌ WRONG: Loads ANY profile, even invalid ones
+init {
+    viewModelScope.launch {
+        val profile = repository.getCurrentUserProfile()
+        if (profile != null) {
+            _userProfile.value = profile.role  // Accepts incomplete profiles!
+        }
+    }
+}
+```
+
+**Issues**:
+- Loads profiles with only `role` but missing `name`
+- Auto-navigates to patient/caregiver screen after sign out
+- User can't return to ProfileSelectionScreen
+- Inconsistent state
+
+### Solution: Strict Validation
+
+**Location**: `SettingsViewModel.kt:40-68`
+```kotlin
+init {
+    loadProfileIfExists()
+}
+
+private fun loadProfileIfExists() {
+    viewModelScope.launch {
+        try {
+            val profile = repository.getCurrentUserProfile()
+            
+            // ✅ STRICT VALIDATION: Check BOTH role AND name
+            val hasValidRole = profile != null && !profile.role.isNullOrEmpty()
+            val hasValidName = profile != null && !profile.name.isNullOrEmpty()
+            
+            if (hasValidRole && hasValidName) {
+                // Valid profile: load it
+                _userProfile.value = profile.role
+                _pairingPin.value = profile.pin
+                _patientName.value = profile.name
+                android.util.Log.d("SettingsViewModel", "✅ Loaded valid profile: ${profile.role}, name: ${profile.name}")
+            } else {
+                // Invalid/incomplete profile: reject it
+                _userProfile.value = null
+                _pairingPin.value = null
+                _patientName.value = null
+                android.util.Log.d("SettingsViewModel", "❌ Invalid profile (role: ${profile?.role}, name: ${profile?.name}) - showing selection screen")
+            }
+        } catch (e: Exception) {
+            // Error loading: fail safe to null
+            _userProfile.value = null
+            _pairingPin.value = null
+            _patientName.value = null
+            android.util.Log.d("SettingsViewModel", "⚠️ Profile load error - showing selection screen: ${e.message}")
+        }
+    }
+}
+```
+
+**Key Principles**:
+1. **Strict Validation**: Check multiple required fields (role AND name)
+2. **Fail Closed**: On error or invalid data, set state to null
+3. **Show Selection**: Null profile → shows ProfileSelectionScreen
+4. **Comprehensive Logging**: Debug with emoji-coded logs (✅ ❌ ⚠️)
+
+**Result**:
+- ✅ ProfileSelectionScreen always shows after sign out
+- ✅ No auto-login from incomplete cached data
+- ✅ User has full control over profile selection
+
+### Synchronous State Updates
+
+For instant UI response, update local state synchronously before async operations:
+
+**Location**: `SettingsViewModel.kt:79-102`
+```kotlin
+fun setUserProfile(profile: String, name: String? = null) {
+    // 1. Update local state IMMEDIATELY (synchronous)
+    val pin = if (profile == "patient") {
+        generatePairingPin()
+    } else ""
+    
+    _userProfile.value = profile
+    _pairingPin.value = pin
+    _patientName.value = name ?: "User"
+    
+    android.util.Log.d("SettingsViewModel", "Profile state updated: $profile")
+    
+    // 2. THEN save to Firebase asynchronously (doesn't block UI)
+    viewModelScope.launch {
+        try {
+            android.util.Log.d("SettingsViewModel", "Saving profile to Firebase: $profile, name: $name")
+            repository.setUserProfile(profile, name ?: "User", pin)
+            android.util.Log.d("SettingsViewModel", "Profile saved to Firebase successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsViewModel", "Error saving profile to Firebase (will retry later)", e)
+            // Local state already updated, so UI works even if Firebase fails
+        }
+    }
+}
+```
+
+**Benefits**:
+- ✅ UI updates instantly (< 100ms)
+- ✅ No waiting for network operations
+- ✅ Works offline
+- ✅ Firebase syncs in background
+
+### Sign Out with Cleanup
+
+Clear local state immediately, clean up Firebase asynchronously:
+
+**Location**: `SettingsViewModel.kt:174-200`
+```kotlin
+fun clearUserProfile() {
+    // 1. Clear local state IMMEDIATELY (synchronous) for instant UI update
+    _userProfile.value = null
+    _pairingPin.value = null
+    _patientName.value = null
+
+    android.util.Log.d("SettingsViewModel", "Profile state cleared locally")
+
+    // 2. Then clean up Firebase asynchronously
+    viewModelScope.launch {
+        try {
+            // Delete user profile from Firebase
+            repository.deleteUserProfile()
+            android.util.Log.d("SettingsViewModel", "Profile deleted from Firebase")
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsViewModel", "Error deleting profile from Firebase (already cleared locally)", e)
+        }
+
+        try {
+            // Sign out from Firebase Auth
+            RepositoryProvider.getAuthManager().signOut()
+            android.util.Log.d("SettingsViewModel", "Signed out from Firebase Auth")
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsViewModel", "Error signing out from Firebase Auth", e)
+        }
+    }
+}
+```
+
+**Key Pattern**:
+1. **Local state first**: Instant UI response
+2. **Network operations second**: Don't block user
+3. **Error handling**: Local state already cleared, errors logged but don't affect UI
+
 ## Derived State
 
 ### Computed Properties
@@ -376,6 +632,7 @@ fun `uiState emits initial state`() = runTest {
 
 ## Best Practices
 
+### Core State Management
 1. **Immutable state**: Use data classes with `copy()`
 2. **Private mutable, public immutable**: `MutableStateFlow` + `StateFlow`
 3. **Single UI state class**: One per screen
@@ -386,3 +643,27 @@ fun `uiState emits initial state`() = runTest {
 8. **Validation**: Real-time validation with error states
 9. **Transient events**: Snackbar messages cleared after shown
 10. **Repository as source**: ViewModel transforms repository data to UI state
+
+### Shared ViewModels
+11. **Create once**: Instantiate at app level, pass through tree
+12. **No default parameters**: Force explicit passing of shared instances
+13. **Share when needed**: For cross-screen data (settings, profile)
+14. **Don't over-share**: Keep screen-specific ViewModels separate
+
+### Defensive Loading
+15. **Strict validation**: Check ALL required fields before accepting data
+16. **Fail closed**: On error or invalid data, set to null/safe default
+17. **Comprehensive logging**: Use emoji-coded logs for debugging (✅ ❌ ⚠️)
+18. **Reject incomplete data**: Don't accept partially loaded profiles/data
+
+### Performance Patterns
+19. **Synchronous local updates**: Update UI state immediately
+20. **Asynchronous network**: Do Firebase/network operations in background
+21. **Don't block UI**: Never wait for network before showing UI changes
+22. **Error handling**: Local state updated even if network fails
+
+### Sign Out & Cleanup
+23. **Immediate local clear**: Clear state synchronously for instant response
+24. **Async cleanup**: Delete Firebase data in background
+25. **Comprehensive deletion**: Remove all user data (profile + auth)
+26. **Error resilience**: Continue even if cleanup operations fail

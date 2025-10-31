@@ -14,6 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.medicaladherence.viewmodel.MedicationsLibraryViewModel
+import com.example.medicaladherence.viewmodel.SettingsViewModel
+import com.example.medicaladherence.ui.components.PinEntryDialog
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,8 +26,18 @@ fun MedicationsLibraryScreen(
     viewModel: MedicationsLibraryViewModel = viewModel()
 ) {
     val medications by viewModel.medications.collectAsState()
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val caretakerPin by settingsViewModel.caretakerPin.collectAsState()
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     var medicationToDelete by remember { mutableStateOf<String?>(null) }
+    var showPinDialogForAdd by remember { mutableStateOf(false) }
+    var showPinDialogForEdit by remember { mutableStateOf(false) }
+    var showPinDialogForDelete by remember { mutableStateOf(false) }
+    var pendingEditMedId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteMedId by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -33,10 +46,19 @@ fun MedicationsLibraryScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAdd) {
+            FloatingActionButton(
+                onClick = {
+                    if (caretakerPin != null) {
+                        showPinDialogForAdd = true
+                    } else {
+                        onNavigateToAdd()
+                    }
+                }
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Medication")
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         if (medications.isEmpty()) {
             // Empty state
@@ -81,10 +103,22 @@ fun MedicationsLibraryScreen(
                 items(medications) { medication ->
                     MedicationLibraryCard(
                         medication = medication,
-                        onEdit = { onNavigateToEdit(medication.id) },
+                        onEdit = {
+                            if (caretakerPin != null) {
+                                pendingEditMedId = medication.id
+                                showPinDialogForEdit = true
+                            } else {
+                                onNavigateToEdit(medication.id)
+                            }
+                        },
                         onDelete = {
-                            medicationToDelete = medication.id
-                            showDeleteDialog = true
+                            if (caretakerPin != null) {
+                                pendingDeleteMedId = medication.id
+                                showPinDialogForDelete = true
+                            } else {
+                                medicationToDelete = medication.id
+                                showDeleteDialog = true
+                            }
                         }
                     )
                 }
@@ -104,7 +138,15 @@ fun MedicationsLibraryScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        medicationToDelete?.let { viewModel.deleteMedication(it) }
+                        medicationToDelete?.let { 
+                            viewModel.deleteMedication(it)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = "Medication deleted",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }
                         showDeleteDialog = false
                         medicationToDelete = null
                     },
@@ -121,6 +163,52 @@ fun MedicationsLibraryScreen(
                     medicationToDelete = null
                 }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // PIN Dialogs
+    if (showPinDialogForAdd) {
+        PinEntryDialog(
+            onDismiss = { showPinDialogForAdd = false },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showPinDialogForAdd = false
+                    onNavigateToAdd()
+                }
+            }
+        )
+    }
+
+    if (showPinDialogForEdit) {
+        PinEntryDialog(
+            onDismiss = {
+                showPinDialogForEdit = false
+                pendingEditMedId = null
+            },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showPinDialogForEdit = false
+                    pendingEditMedId?.let { onNavigateToEdit(it) }
+                    pendingEditMedId = null
+                }
+            }
+        )
+    }
+
+    if (showPinDialogForDelete) {
+        PinEntryDialog(
+            onDismiss = {
+                showPinDialogForDelete = false
+                pendingDeleteMedId = null
+            },
+            onPinEntered = { enteredPin ->
+                if (settingsViewModel.verifyPin(enteredPin)) {
+                    showPinDialogForDelete = false
+                    medicationToDelete = pendingDeleteMedId
+                    showDeleteDialog = true
+                    pendingDeleteMedId = null
                 }
             }
         )

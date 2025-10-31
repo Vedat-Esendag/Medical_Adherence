@@ -109,24 +109,73 @@ val Typography = Typography(
 )
 
 /**
- * Returns a Typography instance scaled by the given factor
+ * Returns a Typography instance scaled by the given factor and optionally with bold text for high contrast
  */
-fun getScaledTypography(scale: Float): Typography {
+fun getScaledTypography(scale: Float, highContrast: Boolean = false): Typography {
+    val fontWeight = if (highContrast) FontWeight.Bold else FontWeight.Normal
+    val headingWeight = if (highContrast) FontWeight.ExtraBold else FontWeight.Normal
+    val mediumWeight = if (highContrast) FontWeight.ExtraBold else FontWeight.Medium
+
     return Typography(
-        displayLarge = Typography.displayLarge.copy(fontSize = Typography.displayLarge.fontSize * scale),
-        displayMedium = Typography.displayMedium.copy(fontSize = Typography.displayMedium.fontSize * scale),
-        displaySmall = Typography.displaySmall.copy(fontSize = Typography.displaySmall.fontSize * scale),
-        headlineLarge = Typography.headlineLarge.copy(fontSize = Typography.headlineLarge.fontSize * scale),
-        headlineMedium = Typography.headlineMedium.copy(fontSize = Typography.headlineMedium.fontSize * scale),
-        headlineSmall = Typography.headlineSmall.copy(fontSize = Typography.headlineSmall.fontSize * scale),
-        titleLarge = Typography.titleLarge.copy(fontSize = Typography.titleLarge.fontSize * scale),
-        titleMedium = Typography.titleMedium.copy(fontSize = Typography.titleMedium.fontSize * scale),
-        titleSmall = Typography.titleSmall.copy(fontSize = Typography.titleSmall.fontSize * scale),
-        bodyLarge = Typography.bodyLarge.copy(fontSize = Typography.bodyLarge.fontSize * scale),
-        bodyMedium = Typography.bodyMedium.copy(fontSize = Typography.bodyMedium.fontSize * scale),
-        bodySmall = Typography.bodySmall.copy(fontSize = Typography.bodySmall.fontSize * scale),
-        labelLarge = Typography.labelLarge.copy(fontSize = Typography.labelLarge.fontSize * scale),
-        labelMedium = Typography.labelMedium.copy(fontSize = Typography.labelMedium.fontSize * scale),
-        labelSmall = Typography.labelSmall.copy(fontSize = Typography.labelSmall.fontSize * scale)
+        displayLarge = Typography.displayLarge.copy(
+            fontSize = Typography.displayLarge.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        displayMedium = Typography.displayMedium.copy(
+            fontSize = Typography.displayMedium.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        displaySmall = Typography.displaySmall.copy(
+            fontSize = Typography.displaySmall.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        headlineLarge = Typography.headlineLarge.copy(
+            fontSize = Typography.headlineLarge.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        headlineMedium = Typography.headlineMedium.copy(
+            fontSize = Typography.headlineMedium.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        headlineSmall = Typography.headlineSmall.copy(
+            fontSize = Typography.headlineSmall.fontSize * scale,
+            fontWeight = headingWeight
+        ),
+        titleLarge = Typography.titleLarge.copy(
+            fontSize = Typography.titleLarge.fontSize * scale,
+            fontWeight = mediumWeight
+        ),
+        titleMedium = Typography.titleMedium.copy(
+            fontSize = Typography.titleMedium.fontSize * scale,
+            fontWeight = mediumWeight
+        ),
+        titleSmall = Typography.titleSmall.copy(
+            fontSize = Typography.titleSmall.fontSize * scale,
+            fontWeight = mediumWeight
+        ),
+        bodyLarge = Typography.bodyLarge.copy(
+            fontSize = Typography.bodyLarge.fontSize * scale,
+            fontWeight = fontWeight
+        ),
+        bodyMedium = Typography.bodyMedium.copy(
+            fontSize = Typography.bodyMedium.fontSize * scale,
+            fontWeight = fontWeight
+        ),
+        bodySmall = Typography.bodySmall.copy(
+            fontSize = Typography.bodySmall.fontSize * scale,
+            fontWeight = fontWeight
+        ),
+        labelLarge = Typography.labelLarge.copy(
+            fontSize = Typography.labelLarge.fontSize * scale,
+            fontWeight = mediumWeight
+        ),
+        labelMedium = Typography.labelMedium.copy(
+            fontSize = Typography.labelMedium.fontSize * scale,
+            fontWeight = mediumWeight
+        ),
+        labelSmall = Typography.labelSmall.copy(
+            fontSize = Typography.labelSmall.fontSize * scale,
+            fontWeight = mediumWeight
+        )
     )
 }

@@ -9,6 +9,7 @@ object Routes {
     const val ADD_MEDICATION = "add_medication"
     const val EDIT_MEDICATION = "add_medication?id={medId}"
     const val STATS = "stats"
+    const val CARETAKER = "caretaker"
     const val SETTINGS = "settings"
 }
 
