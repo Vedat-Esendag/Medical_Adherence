@@ -19,7 +19,8 @@ object RepositoryProvider {
 
     fun provideRepository(context: Context): FirebaseMedicationRepository {
         return repository ?: synchronized(this) {
-            val auth = authManager ?: FirebaseAuthManager.getInstance().also { authManager = it }
+            // Pass context to FirebaseAuthManager for device-specific offline IDs
+            val auth = authManager ?: FirebaseAuthManager.getInstance(context).also { authManager = it }
 
             // Initialize Firestore (offline persistence is enabled by default in newer versions)
             val firestore = FirebaseFirestore.getInstance()
@@ -47,8 +48,9 @@ object RepositoryProvider {
 
     /**
      * Get the Firebase auth manager instance.
+     * Note: If called before provideRepository(), context won't be available for device-specific IDs
      */
     fun getAuthManager(): FirebaseAuthManager {
-        return authManager ?: FirebaseAuthManager.getInstance().also { authManager = it }
+        return authManager ?: FirebaseAuthManager.getInstance(null).also { authManager = it }
     }
 }

@@ -1,5 +1,7 @@
 package com.example.medicaladherence.data.firebase
 
+import android.content.Context
+import android.provider.Settings
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.tasks.await
@@ -7,11 +9,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-class FirebaseAuthManager {
+class FirebaseAuthManager(private val context: Context? = null) {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     
-    // Cached offline user ID for consistency
+    // Cached offline user ID for consistency (device-specific)
     private var cachedOfflineUserId: String? = null
 
     val currentUser: FirebaseUser?
@@ -40,6 +42,30 @@ class FirebaseAuthManager {
     }
 
     /**
+     * Generate a device-specific offline user ID based on Android ID
+     * This ensures each device/emulator gets a unique ID, preventing profile conflicts
+     */
+    private fun generateDeviceSpecificOfflineId(): String {
+        return try {
+            if (context != null) {
+                val androidId = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ANDROID_ID
+                )
+                // Use first 8 characters of Android ID for shorter, readable ID
+                val shortId = androidId?.take(8) ?: "unknown"
+                "offline_user_$shortId"
+            } else {
+                // Fallback if context not provided (shouldn't happen in normal use)
+                "offline_user_local"
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseAuth", "Error getting Android ID: ${e.message}")
+            "offline_user_local"
+        }
+    }
+
+    /**
      * Ensure user is authenticated (sign in if needed)
      * Returns existing user ID or creates a persistent fallback local ID if offline
      */
@@ -50,11 +76,12 @@ class FirebaseAuthManager {
         // Try to sign in anonymously
         val result = signInAnonymously()
         return result.getOrNull() ?: run {
-            // If sign-in fails (e.g., offline), use a persistent local fallback ID
+            // If sign-in fails (e.g., offline), use a device-specific persistent fallback ID
             // This allows the app to work offline with Firestore's cache
+            // Each device/emulator gets a unique ID based on its Android ID
             if (cachedOfflineUserId == null) {
-                cachedOfflineUserId = "offline_user_local"
-                android.util.Log.w("FirebaseAuth", "Using offline mode with local ID: $cachedOfflineUserId")
+                cachedOfflineUserId = generateDeviceSpecificOfflineId()
+                android.util.Log.w("FirebaseAuth", "Using offline mode with device-specific ID: $cachedOfflineUserId")
             }
             cachedOfflineUserId!!
         }
@@ -89,9 +116,9 @@ class FirebaseAuthManager {
         @Volatile
         private var INSTANCE: FirebaseAuthManager? = null
 
-        fun getInstance(): FirebaseAuthManager {
+        fun getInstance(context: Context? = null): FirebaseAuthManager {
             return INSTANCE ?: synchronized(this) {
-                val instance = FirebaseAuthManager()
+                val instance = FirebaseAuthManager(context)
                 INSTANCE = instance
                 instance
             }

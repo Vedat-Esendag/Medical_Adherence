@@ -47,7 +47,7 @@ class FirebaseMedicationRepository(
     suspend fun setUserProfile(role: String, name: String, pin: String) {
         try {
             val userId = getCurrentUserId()
-            android.util.Log.d("FirebaseRepo", "Setting profile for user: $userId, role: $role")
+            android.util.Log.d("FirebaseRepo", "👤 Setting profile for user: $userId, role: $role, PIN: $pin")
             
             val profile = FirestoreUserProfile(
                 userId = userId,
@@ -57,9 +57,9 @@ class FirebaseMedicationRepository(
             )
             
             getCurrentUserDoc().set(profile).await()
-            android.util.Log.d("FirebaseRepo", "Profile saved successfully")
+            android.util.Log.d("FirebaseRepo", "✅ Profile saved successfully - User: $userId, Role: $role, Name: $name, PIN: $pin")
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepo", "Error saving profile", e)
+            android.util.Log.e("FirebaseRepo", "❌ Error saving profile", e)
             throw e
         }
     }
@@ -479,64 +479,84 @@ class FirebaseMedicationRepository(
     }
 
     suspend fun getPatientDataByPin(pin: String): PatientDataExport? {
-        // Query users by PIN
-        val users = firestore.collection("users")
-            .whereEqualTo("pin", pin)
-            .whereEqualTo("role", "patient")
-            .get()
-            .await()
+        try {
+            android.util.Log.d("FirebaseRepo", "⚙️ Searching for patient with PIN: $pin")
+            
+            // Query users by PIN
+            val users = firestore.collection("users")
+                .whereEqualTo("pin", pin)
+                .whereEqualTo("role", "patient")
+                .get()
+                .await()
 
-        if (users.isEmpty) return null
+            android.util.Log.d("FirebaseRepo", "📊 Query returned ${users.documents.size} user(s)")
+            
+            if (users.isEmpty) {
+                android.util.Log.w("FirebaseRepo", "❌ No patient found with PIN: $pin")
+                return null
+            }
 
-        val patientUserId = users.documents.first().id
-        val patientName = users.documents.first().getString("name") ?: "Unknown"
+            val patientUserId = users.documents.first().id
+            val patientName = users.documents.first().getString("name") ?: "Unknown"
+            
+            android.util.Log.d("FirebaseRepo", "✅ Found patient: $patientName (ID: $patientUserId)")
 
-        // Get patient's medications
-        val medications = firestore.collection("users/$patientUserId/medications")
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(FirestoreMedication::class.java) }
+            // Get patient's medications
+            val medications = firestore.collection("users/$patientUserId/medications")
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(FirestoreMedication::class.java) }
 
-        // Get patient's dose events (last 30 days)
-        val endDate = LocalDate.now()
-        val startDate = endDate.minusDays(30)
-        val doseEvents = firestore.collection("users/$patientUserId/doseEvents")
-            .whereGreaterThanOrEqualTo("date", startDate.toString())
-            .whereLessThanOrEqualTo("date", endDate.toString())
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toObject(FirestoreDoseEvent::class.java) }
+            android.util.Log.d("FirebaseRepo", "💊 Found ${medications.size} medication(s)")
 
-        val medExports = medications.map { med ->
-            MedicationExport(
-                id = med.id,
-                name = med.name,
-                dosage = med.dosage,
-                times = med.times,
-                notes = med.notes,
-                frequency = med.frequency,
-                specificDays = med.specificDays
+            // Get patient's dose events (last 30 days)
+            val endDate = LocalDate.now()
+            val startDate = endDate.minusDays(30)
+            val doseEvents = firestore.collection("users/$patientUserId/doseEvents")
+                .whereGreaterThanOrEqualTo("date", startDate.toString())
+                .whereLessThanOrEqualTo("date", endDate.toString())
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(FirestoreDoseEvent::class.java) }
+
+            android.util.Log.d("FirebaseRepo", "📅 Found ${doseEvents.size} dose event(s)")
+
+            val medExports = medications.map { med ->
+                MedicationExport(
+                    id = med.id,
+                    name = med.name,
+                    dosage = med.dosage,
+                    times = med.times,
+                    notes = med.notes,
+                    frequency = med.frequency,
+                    specificDays = med.specificDays
+                )
+            }
+
+            val eventExports = doseEvents.map { event ->
+                DoseEventExport(
+                    id = 0L,
+                    medId = event.medId,
+                    date = event.date,
+                    time = event.time,
+                    taken = event.taken
+                )
+            }
+
+            android.util.Log.d("FirebaseRepo", "✅ Successfully created PatientDataExport for $patientName")
+            
+            return PatientDataExport(
+                pin = pin,
+                name = patientName,
+                medications = medExports,
+                doseEvents = eventExports
             )
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseRepo", "❌ Error getting patient data by PIN: ${e.message}", e)
+            return null
         }
-
-        val eventExports = doseEvents.map { event ->
-            DoseEventExport(
-                id = 0L,
-                medId = event.medId,
-                date = event.date,
-                time = event.time,
-                taken = event.taken
-            )
-        }
-
-        return PatientDataExport(
-            pin = pin,
-            name = patientName,
-            medications = medExports,
-            doseEvents = eventExports
-        )
     }
 
     suspend fun importPatientData(data: PatientDataExport) {

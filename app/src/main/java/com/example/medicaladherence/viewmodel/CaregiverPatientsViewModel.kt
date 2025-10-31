@@ -65,8 +65,11 @@ class CaregiverPatientsViewModel(
             _importStatus.value = ImportStatus.Loading
             
             try {
+                android.util.Log.d("CaregiverPatientsVM", "🔍 Attempting to import patient with PIN: $pin")
+                
                 // Validate PIN format
                 if (pin.length != 6 || !pin.all { it.isDigit() }) {
+                    android.util.Log.w("CaregiverPatientsVM", "❌ Invalid PIN format: $pin")
                     _importStatus.value = ImportStatus.Error("PIN must be 6 digits")
                     return@launch
                 }
@@ -74,27 +77,34 @@ class CaregiverPatientsViewModel(
                 // Check for duplicate patient
                 val existingPatients = patients.value
                 if (existingPatients.any { it.pin == pin }) {
+                    android.util.Log.w("CaregiverPatientsVM", "⚠️ Patient with PIN $pin already in list")
                     _importStatus.value = ImportStatus.Error("This patient is already in your list")
                     return@launch
                 }
                 
                 // Try to find patient data in local database (for testing/same device)
+                android.util.Log.d("CaregiverPatientsVM", "📡 Querying Firebase for patient with PIN: $pin")
                 val patientData = repository.getPatientDataByPin(pin)
                 
                 if (patientData != null) {
+                    android.util.Log.d("CaregiverPatientsVM", "✅ Found patient: ${patientData.name}, importing data...")
                     // Import the data
                     repository.importPatientData(patientData)
                     _importStatus.value = ImportStatus.Success(patientData.name)
+                    android.util.Log.d("CaregiverPatientsVM", "🎉 Successfully imported patient: ${patientData.name}")
                 } else {
                     // PIN not found on this device
+                    android.util.Log.w("CaregiverPatientsVM", "❌ Patient with PIN $pin not found in Firebase")
                     _importStatus.value = ImportStatus.Error(
                         "Patient not found. Make sure:\n" +
-                        "• The PIN is correct\n" +
-                        "• Patient has created medications\n" +
+                        "• The PIN is correct ($pin)\n" +
+                        "• Patient has signed out and back in (recreates profile)\n" +
+                        "• Patient and caregiver are using different profiles on this device\n" +
                         "• For separate devices, use QR code instead"
                     )
                 }
             } catch (e: Exception) {
+                android.util.Log.e("CaregiverPatientsVM", "❌ Error importing patient: ${e.message}", e)
                 _importStatus.value = ImportStatus.Error("Failed to add patient: ${e.message}")
             }
         }
