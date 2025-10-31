@@ -10,6 +10,8 @@ import java.time.LocalDate
 
 data class CaretakerUiState(
     val patientName: String = "Patient",
+    val patientPin: String = "",
+    val medicationCount: Int = 0,
     val weeklyAdherence: Int = 0,
     val monthlyAdherence: Int = 0,
     val currentStreak: Int = 0,
@@ -17,7 +19,9 @@ data class CaretakerUiState(
     val recentMissedDoses: List<MissedDoseInfo> = emptyList(),
     val problematicMedications: List<MedicationAdherence> = emptyList(),
     val adherenceTrend: String = "Stable", // "Improving", "Declining", "Stable"
-    val lastUpdated: String = ""
+    val lastUpdated: String = "",
+    val isLoading: Boolean = true,
+    val error: String? = null
 )
 
 data class MissedDoseInfo(
@@ -28,68 +32,255 @@ data class MissedDoseInfo(
 )
 
 class CaretakerViewModel(
-    private val repository: FirebaseMedicationRepository
+    private val repository: FirebaseMedicationRepository,
+    private val patientPin: String? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CaretakerUiState())
     val uiState: StateFlow<CaretakerUiState> = _uiState.asStateFlow()
 
+    // Real-time medications flow
+    val medications: StateFlow<List<com.example.medicaladherence.data.model.Medication>> = if (patientPin != null) {
+        repository.getMedicationsForPatientByPin(patientPin)
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+    } else {
+        repository.medications
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+    }
+
     init {
+        // Set up real-time medication count observer
+        viewModelScope.launch {
+            medications.collect { meds ->
+                _uiState.value = _uiState.value.copy(medicationCount = meds.size)
+            }
+        }
+        
         loadCaretakerData()
     }
 
     private fun loadCaretakerData() {
         viewModelScope.launch {
             try {
-                // Weekly adherence
-                val weeklyAdherence = repository.calculateWeeklyAdherence()
+                _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+                
+                android.util.Log.d("CaretakerVM", "Loading data for patient PIN: ${patientPin ?: "current user"}")
 
-                // Monthly adherence
-                val monthlyAdherence = repository.calculateMonthlyAdherence()
-
-                // Streak
-                val currentStreak = repository.calculateStreak()
-                val longestStreak = repository.calculateLongestStreak()
-
-                // Recent missed doses
-                val missedDoses = repository.getRecentMissedDoses(7) // Last 7 days
-
-                // Problematic medications (< 70% adherence)
-                val medications = repository.medications.first()
                 val today = LocalDate.now()
                 val weekAgo = today.minusDays(6)
+                val monthAgo = today.minusDays(29)
 
-                val problematicMeds = medications.mapNotNull { med ->
-                    val adherence = repository.calculateMedicationAdherence(
-                        medId = med.id,
-                        startDate = weekAgo,
-                        endDate = today
+                // If monitoring a specific patient
+                if (patientPin != null) {
+                    // Get patient name
+                    val patientData = repository.getPatientDataByPin(patientPin)
+                    val patientName = patientData?.name ?: "Patient"
+
+                    // Calculate adherence using patient-specific methods
+                    val weeklyAdherence = repository.calculatePatientAdherence(patientPin, weekAgo, today)
+                    val monthlyAdherence = repository.calculatePatientAdherence(patientPin, monthAgo, today)
+
+                    // Get medications and dose events
+                    val medications = repository.getMedicationsForPatientByPin(patientPin).first()
+                    val doseEvents = repository.getDoseEventsForPatientByPin(patientPin, weekAgo, today)
+
+                    // Calculate streak for patient
+                    val currentStreak = calculateStreakForPatient(medications, doseEvents, today)
+
+                    // Get recent missed doses
+                    val missedDoses = calculateMissedDosesForPatient(medications, doseEvents, weekAgo, today)
+
+                    // Problematic medications (< 70% adherence)
+                    val problematicMeds = calculateProblematicMedsForPatient(medications, doseEvents, weekAgo, today)
+
+                    // Adherence trend
+                    val trend = calculateTrendForPatient(patientPin, weekAgo, today)
+
+                    val lastUpdated = java.time.LocalTime.now().format(
+                        java.time.format.DateTimeFormatter.ofPattern("HH:mm")
                     )
-                    if (adherence.percentage < 70) adherence else null
-                }.sortedBy { it.percentage }
 
-                // Adherence trend
-                val trend = calculateTrend(repository)
+                    android.util.Log.d("CaretakerVM", "✅ Loaded patient data: $patientName, ${medications.size} meds, $weeklyAdherence% weekly adherence")
 
-                // Last updated time
-                val lastUpdated = java.time.LocalTime.now().format(
-                    java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-                )
+                    _uiState.value = CaretakerUiState(
+                        patientName = patientName,
+                        patientPin = patientPin,
+                        medicationCount = medications.size,
+                        weeklyAdherence = weeklyAdherence,
+                        monthlyAdherence = monthlyAdherence,
+                        currentStreak = currentStreak,
+                        longestStreak = currentStreak, // TODO: Calculate longest streak
+                        recentMissedDoses = missedDoses,
+                        problematicMedications = problematicMeds,
+                        adherenceTrend = trend,
+                        lastUpdated = lastUpdated,
+                        isLoading = false
+                    )
+                } else {
+                    // Use current user's data (original behavior)
+                    val weeklyAdherence = repository.calculateWeeklyAdherence()
+                    val monthlyAdherence = repository.calculateMonthlyAdherence()
+                    val currentStreak = repository.calculateStreak()
+                    val longestStreak = repository.calculateLongestStreak()
+                    val missedDoses = repository.getRecentMissedDoses(7)
+                    val medications = repository.medications.first()
 
-                _uiState.value = CaretakerUiState(
-                    weeklyAdherence = weeklyAdherence,
-                    monthlyAdherence = monthlyAdherence,
-                    currentStreak = currentStreak,
-                    longestStreak = longestStreak,
-                    recentMissedDoses = missedDoses,
-                    problematicMedications = problematicMeds,
-                    adherenceTrend = trend,
-                    lastUpdated = lastUpdated
-                )
+                    val problematicMeds = medications.mapNotNull { med ->
+                        val adherence = repository.calculateMedicationAdherence(
+                            medId = med.id,
+                            startDate = weekAgo,
+                            endDate = today
+                        )
+                        if (adherence.percentage < 70) adherence else null
+                    }.sortedBy { it.percentage }
+
+                    val trend = calculateTrend(repository)
+                    val lastUpdated = java.time.LocalTime.now().format(
+                        java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+                    )
+
+                    _uiState.value = CaretakerUiState(
+                        medicationCount = medications.size,
+                        weeklyAdherence = weeklyAdherence,
+                        monthlyAdherence = monthlyAdherence,
+                        currentStreak = currentStreak,
+                        longestStreak = longestStreak,
+                        recentMissedDoses = missedDoses,
+                        problematicMedications = problematicMeds,
+                        adherenceTrend = trend,
+                        lastUpdated = lastUpdated,
+                        isLoading = false
+                    )
+                }
             } catch (e: Exception) {
-                // Handle error
-                _uiState.value = CaretakerUiState()
+                android.util.Log.e("CaretakerVM", "❌ Error loading caretaker data", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to load patient data: ${e.message}"
+                )
             }
+        }
+    }
+
+    private fun calculateStreakForPatient(
+        medications: List<com.example.medicaladherence.data.model.Medication>,
+        doseEvents: List<com.example.medicaladherence.data.model.DoseEvent>,
+        today: LocalDate
+    ): Int {
+        var streak = 0
+        var date = today
+        
+        while (true) {
+            val expectedDoses = medications.sumOf { med ->
+                med.times.size
+            }
+            
+            if (expectedDoses == 0) {
+                break
+            }
+            
+            val takenDoses = doseEvents.count { 
+                it.date == date && it.taken 
+            }
+            
+            if (takenDoses >= expectedDoses) {
+                streak++
+                date = date.minusDays(1)
+            } else {
+                break
+            }
+        }
+        
+        return streak
+    }
+
+    private fun calculateMissedDosesForPatient(
+        medications: List<com.example.medicaladherence.data.model.Medication>,
+        doseEvents: List<com.example.medicaladherence.data.model.DoseEvent>,
+        start: LocalDate,
+        end: LocalDate
+    ): List<MissedDoseInfo> {
+        val missed = mutableListOf<MissedDoseInfo>()
+        
+        var date = start
+        while (!date.isAfter(end)) {
+            medications.forEach { med ->
+                med.times.forEach { time ->
+                    val event = doseEvents.find { 
+                        it.medId == med.id && it.date == date && it.time == time 
+                    }
+                    if (event == null || !event.taken) {
+                        missed.add(MissedDoseInfo(
+                            medicationName = med.name,
+                            dosage = med.dosage,
+                            date = date,
+                            time = time
+                        ))
+                    }
+                }
+            }
+            date = date.plusDays(1)
+        }
+        
+        return missed.take(10) // Return most recent 10
+    }
+
+    private fun calculateProblematicMedsForPatient(
+        medications: List<com.example.medicaladherence.data.model.Medication>,
+        doseEvents: List<com.example.medicaladherence.data.model.DoseEvent>,
+        start: LocalDate,
+        end: LocalDate
+    ): List<MedicationAdherence> {
+        return medications.mapNotNull { med ->
+            var expected = 0
+            var taken = 0
+            
+            var date = start
+            while (!date.isAfter(end)) {
+                expected += med.times.size
+                taken += med.times.count { time ->
+                    doseEvents.any { 
+                        it.medId == med.id && it.date == date && it.time == time && it.taken 
+                    }
+                }
+                date = date.plusDays(1)
+            }
+            
+            val percentage = if (expected > 0) (taken * 100) / expected else 0
+            
+            if (percentage < 70) {
+                MedicationAdherence(
+                    medicationName = med.name,
+                    dosage = med.dosage,
+                    percentage = percentage,
+                    takenCount = taken,
+                    totalCount = expected
+                )
+            } else {
+                null
+            }
+        }.sortedBy { it.percentage }
+    }
+
+    private suspend fun calculateTrendForPatient(pin: String, currentWeekStart: LocalDate, currentWeekEnd: LocalDate): String {
+        val thisWeekAdherence = repository.calculatePatientAdherence(pin, currentWeekStart, currentWeekEnd)
+        
+        val lastWeekEnd = currentWeekStart.minusDays(1)
+        val lastWeekStart = lastWeekEnd.minusDays(6)
+        val lastWeekAdherence = repository.calculatePatientAdherence(pin, lastWeekStart, lastWeekEnd)
+
+        return when {
+            thisWeekAdherence > lastWeekAdherence + 10 -> "Improving"
+            thisWeekAdherence < lastWeekAdherence - 10 -> "Declining"
+            else -> "Stable"
         }
     }
 
@@ -97,7 +288,6 @@ class CaretakerViewModel(
         val today = LocalDate.now()
         val thisWeekAdherence = repository.calculateWeeklyAdherence()
 
-        // Calculate last week's adherence
         val twoWeeksAgo = today.minusDays(13)
         val oneWeekAgo = today.minusDays(7)
 
@@ -116,12 +306,13 @@ class CaretakerViewModel(
 }
 
 class CaretakerViewModelFactory(
-    private val repository: FirebaseMedicationRepository
+    private val repository: FirebaseMedicationRepository,
+    private val patientPin: String? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CaretakerViewModel::class.java)) {
-            return CaretakerViewModel(repository) as T
+            return CaretakerViewModel(repository, patientPin) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

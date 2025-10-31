@@ -6,11 +6,17 @@ import com.example.medicaladherence.viewmodel.MedicationAdherence
 import com.example.medicaladherence.viewmodel.MissedDoseInfo
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.LocalTime
@@ -588,30 +594,188 @@ class FirebaseMedicationRepository(
     // ========== CAREGIVER PATIENT MANAGEMENT ==========
 
     /**
-     * Get all patients linked to the current caregiver
+     * Get all patients linked to the current caregiver with real-time updates
      */
-    fun getCaregiverPatients(): Flow<List<PatientProfile>> = flow {
+    fun getCaregiverPatients(): Flow<List<PatientProfile>> = callbackFlow {
         val caregiverUserId = getCurrentUserId()
+        android.util.Log.d("FirebaseRepo", "🔄 Setting up real-time listener for caregiver: $caregiverUserId")
 
-        val links = firestore.collection("caregiver_links")
+        val listener = firestore.collection("caregiver_links")
             .whereEqualTo("caregiverUserId", caregiverUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.e("FirebaseRepo", "❌ Error in caregiver patients listener", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                if (snapshot == null) {
+                    android.util.Log.w("FirebaseRepo", "⚠️ Snapshot is null")
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                android.util.Log.d("FirebaseRepo", "📊 Caregiver links snapshot received: ${snapshot.documents.size} links")
+
+                val links = snapshot.documents.mapNotNull { 
+                    it.toObject(FirestoreCaregiverLink::class.java) 
+                }
+
+                // Launch coroutines to fetch medication counts for each patient
+                launch(Dispatchers.IO) {
+                    val patients = links.map { link ->
+                        val medCount = try {
+                            val patientUserId = firestore.collection("users")
+                                .whereEqualTo("pin", link.patientPin)
+                                .whereEqualTo("role", "patient")
+                                .get()
+                                .await()
+                                .documents
+                                .firstOrNull()
+                                ?.id
+
+                            if (patientUserId != null) {
+                                val count = firestore.collection("users/$patientUserId/medications")
+                                    .get()
+                                    .await()
+                                    .documents
+                                    .size
+                                android.util.Log.d("FirebaseRepo", "💊 Patient ${link.patientName} has $count medication(s)")
+                                count
+                            } else {
+                                android.util.Log.w("FirebaseRepo", "⚠️ Could not find patient userId for PIN: ${link.patientPin}")
+                                0
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("FirebaseRepo", "❌ Error fetching med count for ${link.patientName}", e)
+                            0
+                        }
+
+                        PatientProfile(
+                            pin = link.patientPin,
+                            name = link.patientName,
+                            addedAt = link.addedAt.seconds * 1000,
+                            lastSyncedAt = System.currentTimeMillis(),
+                            medicationCount = medCount
+                        )
+                    }
+
+                    android.util.Log.d("FirebaseRepo", "✅ Emitting ${patients.size} patient(s) with medication counts")
+                    trySend(patients)
+                }
+            }
+
+        awaitClose {
+            android.util.Log.d("FirebaseRepo", "🔌 Removing caregiver patients listener")
+            listener.remove()
+        }
+    }.catch { e ->
+        android.util.Log.e("FirebaseRepo", "❌ Error in caregiver patients flow", e)
+        emit(emptyList())
+    }
+
+    /**
+     * Get a patient's userId by their PIN
+     */
+    private suspend fun getPatientUserIdByPin(pin: String): String? {
+        return try {
+            firestore.collection("users")
+                .whereEqualTo("pin", pin)
+                .whereEqualTo("role", "patient")
+                .get()
+                .await()
+                .documents
+                .firstOrNull()
+                ?.id
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseRepo", "Error getting patient userId by PIN", e)
+            null
+        }
+    }
+
+    /**
+     * Get medications for a specific patient (by PIN) with real-time updates
+     */
+    fun getMedicationsForPatientByPin(pin: String): Flow<List<Medication>> = callbackFlow {
+        val patientUserId = getPatientUserIdByPin(pin)
+        
+        if (patientUserId == null) {
+            android.util.Log.w("FirebaseRepo", "⚠️ Could not find patient with PIN: $pin")
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        android.util.Log.d("FirebaseRepo", "🔄 Setting up medication listener for patient: $patientUserId")
+
+        val listener = firestore.collection("users/$patientUserId/medications")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    android.util.Log.e("FirebaseRepo", "❌ Error in patient medications listener", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                if (snapshot == null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+
+                val medications = snapshot.documents.mapNotNull { 
+                    it.toObject(FirestoreMedication::class.java)?.toMedication()
+                }
+                
+                android.util.Log.d("FirebaseRepo", "💊 Patient medications updated: ${medications.size} med(s)")
+                trySend(medications)
+            }
+
+        awaitClose {
+            android.util.Log.d("FirebaseRepo", "🔌 Removing patient medications listener")
+            listener.remove()
+        }
+    }.catch { e ->
+        android.util.Log.e("FirebaseRepo", "❌ Error in patient medications flow", e)
+        emit(emptyList())
+    }
+
+    /**
+     * Get dose events for a specific patient (by PIN)
+     */
+    suspend fun getDoseEventsForPatientByPin(pin: String, startDate: LocalDate, endDate: LocalDate): List<DoseEvent> {
+        return try {
+            val patientUserId = getPatientUserIdByPin(pin) ?: return emptyList()
+
+            firestore.collection("users/$patientUserId/doseEvents")
+                .whereGreaterThanOrEqualTo("date", startDate.toString())
+                .whereLessThanOrEqualTo("date", endDate.toString())
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.toObject(FirestoreDoseEvent::class.java)?.toDoseEvent() }
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseRepo", "Error getting patient dose events", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Calculate adherence for a specific patient
+     */
+    suspend fun calculatePatientAdherence(pin: String, start: LocalDate, end: LocalDate): Int {
+        val patientUserId = getPatientUserIdByPin(pin) ?: return 0
+
+        val doseEvents = firestore.collection("users/$patientUserId/doseEvents")
+            .whereGreaterThanOrEqualTo("date", start.toString())
+            .whereLessThanOrEqualTo("date", end.toString())
             .get()
             .await()
             .documents
-            .mapNotNull { it.toObject(FirestoreCaregiverLink::class.java) }
+            .mapNotNull { it.toObject(FirestoreDoseEvent::class.java)?.toDoseEvent() }
 
-        val patients = links.map { link ->
-            PatientProfile(
-                pin = link.patientPin,
-                name = link.patientName,
-                addedAt = link.addedAt.seconds * 1000
-            )
-        }
+        if (doseEvents.isEmpty()) return 0
 
-        emit(patients)
-    }.catch { e ->
-        android.util.Log.e("FirebaseRepo", "Error loading caregiver patients", e)
-        emit(emptyList())
+        val takenCount = doseEvents.count { it.taken }
+        return ((takenCount.toFloat() / doseEvents.size) * 100).toInt()
     }
 
     /**

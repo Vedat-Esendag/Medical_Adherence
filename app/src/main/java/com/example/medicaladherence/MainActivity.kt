@@ -374,11 +374,11 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
         
         composable("patient_monitor/{pin}") { backStackEntry ->
             val pin = backStackEntry.arguments?.getString("pin") ?: ""
+            android.util.Log.d("MainActivity", "📱 Navigating to patient monitor with PIN: $pin")
             // Reuse CaretakerScreen for monitoring specific patient
-            // You'll need to pass the pin to filter the data
             CaretakerScreen(
                 viewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = CaretakerViewModelFactory(repository)
+                    factory = CaretakerViewModelFactory(repository, pin)
                 )
             )
         }
