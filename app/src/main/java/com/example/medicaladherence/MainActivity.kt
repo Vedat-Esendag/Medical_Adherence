@@ -379,7 +379,8 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
             CaretakerScreen(
                 viewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                     factory = CaretakerViewModelFactory(repository, pin)
-                )
+                ),
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

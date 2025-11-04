@@ -18,6 +18,7 @@ data class CaretakerUiState(
     val longestStreak: Int = 0,
     val recentMissedDoses: List<MissedDoseInfo> = emptyList(),
     val problematicMedications: List<MedicationAdherence> = emptyList(),
+    val medicationBreakdown: List<MedicationAdherence> = emptyList(),
     val adherenceTrend: String = "Stable", // "Improving", "Declining", "Stable"
     val lastUpdated: String = "",
     val isLoading: Boolean = true,
@@ -98,8 +99,35 @@ class CaretakerViewModel(
                     // Get recent missed doses
                     val missedDoses = calculateMissedDosesForPatient(medications, doseEvents, weekAgo, today)
 
+                    // All medication adherence breakdown
+                    val medicationBreakdown = medications.map { med ->
+                        var expected = 0
+                        var taken = 0
+                        
+                        var date = weekAgo
+                        while (!date.isAfter(today)) {
+                            expected += med.times.size
+                            taken += med.times.count { time ->
+                                doseEvents.any { 
+                                    it.medId == med.id && it.date == date && it.time == time && it.taken 
+                                }
+                            }
+                            date = date.plusDays(1)
+                        }
+                        
+                        val percentage = if (expected > 0) (taken * 100) / expected else 0
+                        
+                        MedicationAdherence(
+                            medicationName = med.name,
+                            dosage = med.dosage,
+                            percentage = percentage,
+                            takenCount = taken,
+                            totalCount = expected
+                        )
+                    }.sortedBy { it.percentage }
+
                     // Problematic medications (< 70% adherence)
-                    val problematicMeds = calculateProblematicMedsForPatient(medications, doseEvents, weekAgo, today)
+                    val problematicMeds = medicationBreakdown.filter { it.percentage < 70 }
 
                     // Adherence trend
                     val trend = calculateTrendForPatient(patientPin, weekAgo, today)
@@ -120,6 +148,7 @@ class CaretakerViewModel(
                         longestStreak = currentStreak, // TODO: Calculate longest streak
                         recentMissedDoses = missedDoses,
                         problematicMedications = problematicMeds,
+                        medicationBreakdown = medicationBreakdown,
                         adherenceTrend = trend,
                         lastUpdated = lastUpdated,
                         isLoading = false
@@ -133,14 +162,17 @@ class CaretakerViewModel(
                     val missedDoses = repository.getRecentMissedDoses(7)
                     val medications = repository.medications.first()
 
-                    val problematicMeds = medications.mapNotNull { med ->
-                        val adherence = repository.calculateMedicationAdherence(
+                    // All medication adherence breakdown
+                    val medicationBreakdown = medications.map { med ->
+                        repository.calculateMedicationAdherence(
                             medId = med.id,
                             startDate = weekAgo,
                             endDate = today
                         )
-                        if (adherence.percentage < 70) adherence else null
                     }.sortedBy { it.percentage }
+
+                    // Problematic medications (< 70% adherence)
+                    val problematicMeds = medicationBreakdown.filter { it.percentage < 70 }
 
                     val trend = calculateTrend(repository)
                     val lastUpdated = java.time.LocalTime.now().format(
@@ -155,6 +187,7 @@ class CaretakerViewModel(
                         longestStreak = longestStreak,
                         recentMissedDoses = missedDoses,
                         problematicMedications = problematicMeds,
+                        medicationBreakdown = medicationBreakdown,
                         adherenceTrend = trend,
                         lastUpdated = lastUpdated,
                         isLoading = false
