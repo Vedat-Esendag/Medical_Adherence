@@ -232,6 +232,21 @@ class FirebaseMedicationRepository(
         }
     }
 
+    suspend fun getTodayDosesForPatientByPin(pin: String): List<Triple<Medication, String, Boolean?>> {
+        val today = LocalDate.now()
+        val medicationsList = getMedicationsForPatientByPin(pin).first()
+        val todayEvents = getDoseEventsForPatientByPin(pin, today, today)
+
+        return medicationsList.flatMap { med ->
+            med.times.map { time ->
+                val event = todayEvents.find { it.medId == med.id && it.time == time }
+                Triple(med, time, event?.taken)
+            }
+        }.sortedBy { (_, time, _) ->
+            LocalTime.parse(time)
+        }
+    }
+
     // ========== STATISTICS ==========
 
     suspend fun calculateWeeklyAdherence(): Int {
@@ -656,7 +671,10 @@ class FirebaseMedicationRepository(
                             name = link.patientName,
                             addedAt = link.addedAt.seconds * 1000,
                             lastSyncedAt = System.currentTimeMillis(),
-                            medicationCount = medCount
+                            medicationCount = medCount,
+                            displayName = link.displayName,
+                            phoneNumber = link.phoneNumber,
+                            notes = link.notes
                         )
                     }
 
@@ -795,6 +813,33 @@ class FirebaseMedicationRepository(
             batch.delete(doc.reference)
         }
         batch.commit().await()
+    }
+
+    /**
+     * Update patient information (displayName, phoneNumber, notes) in the caregiver link
+     */
+    suspend fun updatePatientInfo(
+        patientPin: String,
+        displayName: String?,
+        phoneNumber: String?,
+        notes: String?
+    ) {
+        val currentUserId = getCurrentUserId()
+        
+        // Find the caregiver link document
+        val linkQuery = firestore.collection("caregiver_links")
+            .whereEqualTo("caregiverUserId", currentUserId)
+            .whereEqualTo("patientPin", patientPin)
+            .get()
+            .await()
+        
+        linkQuery.documents.firstOrNull()?.reference?.update(
+            mapOf(
+                "displayName" to displayName,
+                "phoneNumber" to phoneNumber,
+                "notes" to notes
+            )
+        )?.await()
     }
 
     // ========== UTILITY ==========

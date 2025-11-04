@@ -16,6 +16,7 @@ data class CaretakerUiState(
     val monthlyAdherence: Int = 0,
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
+    val todayDoses: List<TodayDoseInfo> = emptyList(),
     val recentMissedDoses: List<MissedDoseInfo> = emptyList(),
     val problematicMedications: List<MedicationAdherence> = emptyList(),
     val medicationBreakdown: List<MedicationAdherence> = emptyList(),
@@ -30,6 +31,13 @@ data class MissedDoseInfo(
     val dosage: String,
     val date: LocalDate,
     val time: String
+)
+
+data class TodayDoseInfo(
+    val medicationName: String,
+    val dosage: String,
+    val time: String,
+    val taken: Boolean?  // null = pending, true = taken, false = missed
 )
 
 class CaretakerViewModel(
@@ -93,6 +101,16 @@ class CaretakerViewModel(
                     val medications = repository.getMedicationsForPatientByPin(patientPin).first()
                     val doseEvents = repository.getDoseEventsForPatientByPin(patientPin, weekAgo, today)
 
+                    // Get today's doses
+                    val todayDoses = repository.getTodayDosesForPatientByPin(patientPin).map { (med, time, taken) ->
+                        TodayDoseInfo(
+                            medicationName = med.name,
+                            dosage = med.dosage,
+                            time = time,
+                            taken = taken
+                        )
+                    }
+
                     // Calculate streak for patient
                     val currentStreak = calculateStreakForPatient(medications, doseEvents, today)
 
@@ -142,6 +160,7 @@ class CaretakerViewModel(
                         monthlyAdherence = monthlyAdherence,
                         currentStreak = currentStreak,
                         longestStreak = currentStreak, // TODO: Calculate longest streak
+                        todayDoses = todayDoses,
                         recentMissedDoses = missedDoses,
                         problematicMedications = problematicMeds,
                         medicationBreakdown = medicationBreakdown,
@@ -157,6 +176,16 @@ class CaretakerViewModel(
                     val longestStreak = repository.calculateLongestStreak()
                     val missedDoses = repository.getRecentMissedDoses(7)
                     val medications = repository.medications.first()
+
+                    // Get today's doses
+                    val todayDoses = repository.getTodayDoses().map { (med, time, taken) ->
+                        TodayDoseInfo(
+                            medicationName = med.name,
+                            dosage = med.dosage,
+                            time = time,
+                            taken = taken
+                        )
+                    }
 
                     // All medication adherence breakdown
                     val medicationBreakdown = medications.map { med ->
@@ -178,6 +207,7 @@ class CaretakerViewModel(
                         monthlyAdherence = monthlyAdherence,
                         currentStreak = currentStreak,
                         longestStreak = longestStreak,
+                        todayDoses = todayDoses,
                         recentMissedDoses = missedDoses,
                         problematicMedications = problematicMeds,
                         medicationBreakdown = medicationBreakdown,

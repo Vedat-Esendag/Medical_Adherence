@@ -3,19 +3,17 @@ package com.example.medicaladherence.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.medicaladherence.data.firebase.FirestoreSettings
 import com.example.medicaladherence.data.model.PatientProfile
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class CaregiverSettingsUiState(
-    val caregiverName: String = "",
-    val caregiverPhone: String = "",
-    val caregiverEmail: String = "",
     val patients: List<PatientProfile> = emptyList(),
-    val fontScale: Float = 1.0f,
-    val highContrastMode: Boolean = false
+    // Notification settings
+    val alertThreshold: Int = 70,
+    val dailySummaryEnabled: Boolean = false,
+    val dailySummaryTime: String? = null
 )
 
 class CaregiverSettingsViewModel(
@@ -25,71 +23,63 @@ class CaregiverSettingsViewModel(
     private val _uiState = MutableStateFlow(CaregiverSettingsUiState())
     val uiState: StateFlow<CaregiverSettingsUiState> = _uiState.asStateFlow()
     
-    // Get settings flow from repository
-    private val settingsFlow = repository.getSettings()
-    
     init {
+        loadPatients()
         loadSettings()
     }
     
-    private fun loadSettings() {
+    private fun loadPatients() {
         viewModelScope.launch {
-            // Load patients
             repository.getCaregiverPatients().collect { patients ->
                 _uiState.update { it.copy(patients = patients) }
             }
         }
-        
+    }
+    
+    private fun loadSettings() {
         viewModelScope.launch {
-            // Load display preferences from settings flow
-            settingsFlow.collect { settings ->
-                _uiState.update {
-                    it.copy(
-                        fontScale = settings?.fontScale ?: 1.0f,
-                        highContrastMode = settings?.highContrastMode ?: false
-                    )
+            repository.getSettings().collect { settings ->
+                if (settings != null) {
+                    _uiState.update { 
+                        it.copy(
+                            alertThreshold = settings.alertThreshold,
+                            dailySummaryEnabled = settings.dailySummaryEnabled,
+                            dailySummaryTime = settings.dailySummaryTime
+                        )
+                    }
                 }
             }
-        }
-        
-        // Load caregiver profile (TODO: implement when repository methods are available)
-        // For now, profile fields will be empty and saved locally when changed
-    }
-    
-    fun updateCaregiverName(name: String) {
-        _uiState.update { it.copy(caregiverName = name) }
-        // TODO: Save to repository when method is available
-    }
-    
-    fun updateCaregiverPhone(phone: String) {
-        _uiState.update { it.copy(caregiverPhone = phone) }
-        // TODO: Save to repository when method is available
-    }
-    
-    fun updateCaregiverEmail(email: String) {
-        _uiState.update { it.copy(caregiverEmail = email) }
-        // TODO: Save to repository when method is available
-    }
-    
-    fun updateFontScale(scale: Float) {
-        _uiState.update { it.copy(fontScale = scale) }
-        viewModelScope.launch {
-            val current = settingsFlow.first() ?: FirestoreSettings()
-            repository.saveSettings(current.copy(fontScale = scale))
-        }
-    }
-    
-    fun updateHighContrastMode(enabled: Boolean) {
-        _uiState.update { it.copy(highContrastMode = enabled) }
-        viewModelScope.launch {
-            val current = settingsFlow.first() ?: FirestoreSettings()
-            repository.saveSettings(current.copy(highContrastMode = enabled))
         }
     }
     
     fun removePatient(patient: PatientProfile) {
         viewModelScope.launch {
             repository.removePatientFromCaregiver(patient.pin)
+        }
+    }
+    
+    fun updatePatient(
+        patient: PatientProfile,
+        displayName: String?,
+        phoneNumber: String?,
+        notes: String?
+    ) {
+        viewModelScope.launch {
+            repository.updatePatientInfo(patient.pin, displayName, phoneNumber, notes)
+        }
+    }
+    
+    fun updateAlertThreshold(threshold: Int) {
+        viewModelScope.launch {
+            val current = repository.getSettings().first() ?: com.example.medicaladherence.data.firebase.FirestoreSettings()
+            repository.saveSettings(current.copy(alertThreshold = threshold))
+        }
+    }
+    
+    fun updateDailySummary(enabled: Boolean) {
+        viewModelScope.launch {
+            val current = repository.getSettings().first() ?: com.example.medicaladherence.data.firebase.FirestoreSettings()
+            repository.saveSettings(current.copy(dailySummaryEnabled = enabled))
         }
     }
 }

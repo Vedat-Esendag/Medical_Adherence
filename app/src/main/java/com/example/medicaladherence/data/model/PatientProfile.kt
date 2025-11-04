@@ -9,5 +9,9 @@ data class PatientProfile(
     val name: String,
     val addedAt: Long = System.currentTimeMillis(),
     val lastSyncedAt: Long = System.currentTimeMillis(), // With Firebase, always "synced" in real-time
-    val medicationCount: Int = 0 // Can be calculated from Firestore if needed
+    val medicationCount: Int = 0, // Can be calculated from Firestore if needed
+    // Editable patient metadata
+    val displayName: String? = null,
+    val phoneNumber: String? = null,
+    val notes: String? = null
 )

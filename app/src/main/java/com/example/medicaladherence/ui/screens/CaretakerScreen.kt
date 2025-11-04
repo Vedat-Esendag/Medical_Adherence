@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.example.medicaladherence.viewmodel.CaretakerViewModel
 import com.example.medicaladherence.viewmodel.MedicationAdherence
 import com.example.medicaladherence.viewmodel.MissedDoseInfo
+import com.example.medicaladherence.viewmodel.TodayDoseInfo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -141,7 +142,15 @@ fun CaretakerScreen(
                     )
                 }
 
-                // 2. Needs Attention Section (Compact)
+                // 2. Today's Medications Section
+                item {
+                    TodayMedicationsSection(
+                        todayDoses = uiState.todayDoses,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                // 3. Needs Attention Section (Compact)
                 val problematicMeds = uiState.medicationBreakdown.filter { it.percentage < 70 }
             
                 if (problematicMeds.isNotEmpty()) {
@@ -723,3 +732,312 @@ fun CompactMedicationCard(medication: MedicationAdherence) {
         }
     }
 }
+
+@Composable
+fun TodayMedicationsSection(
+    todayDoses: List<TodayDoseInfo>,
+    modifier: Modifier = Modifier
+) {
+    var showCompleted by remember { mutableStateOf(false) }
+
+    // Group doses by status
+    val pendingDoses = todayDoses.filter { it.taken == null || it.taken == false }
+    val completedDoses = todayDoses.filter { it.taken == true }
+
+    Column(modifier = modifier) {
+        Text(
+            text = "Today's Medications",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 24.dp, horizontal = 0.dp)
+        )
+
+        if (todayDoses.isEmpty()) {
+            // Empty state
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MedicalServices,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "No medications scheduled for today",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            // Pending/Missed doses (prominently displayed)
+            if (pendingDoses.isNotEmpty()) {
+                pendingDoses.forEach { dose ->
+                    TodayDoseCard(
+                        dose = dose,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
+
+            // Completed doses (collapsible)
+            if (completedDoses.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // Collapsed summary
+                Surface(
+                    onClick = { showCompleted = !showCompleted },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${completedDoses.size} completed",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Icon(
+                            imageVector = if (showCompleted) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (showCompleted) "Hide" else "Show",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Expanded completed doses
+                AnimatedVisibility(visible = showCompleted) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        completedDoses.forEach { dose ->
+                            CompactDoseRow(
+                                dose = dose,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // All taken message
+            if (pendingDoses.isEmpty() && completedDoses.isNotEmpty()) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = Color(0xFFE8F5E9)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "All doses taken today!",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun TodayDoseCard(
+    dose: TodayDoseInfo,
+    modifier: Modifier = Modifier
+) {
+    // Determine status color and icon
+    val (statusColor, backgroundColor, statusIcon, statusText) = when (dose.taken) {
+        true -> Quadruple(
+            Color(0xFF2E7D32),    // Green
+            Color(0xFFE8F5E9),
+            Icons.Default.CheckCircle,
+            "Taken"
+        )
+        false -> Quadruple(
+            Color(0xFFD32F2F),    // Red
+            Color(0xFFFFEBEE),
+            Icons.Default.Cancel,
+            "Missed"
+        )
+        null -> Quadruple(
+            Color(0xFF1976D2),    // Blue
+            Color(0xFFE3F2FD),
+            Icons.Default.Schedule,
+            "Pending"
+        )
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = backgroundColor
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Status indicator
+            Surface(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(56.dp),
+                color = statusColor,
+                shape = RoundedCornerShape(2.dp)
+            ) {}
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Middle: Medication info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = dose.medicationName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = dose.dosage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AccessTime,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = dose.time,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Right: Status badge
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = statusColor.copy(alpha = 0.15f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactDoseRow(
+    dose: TodayDoseInfo,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = dose.medicationName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = dose.dosage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = dose.time,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// Helper data class for quadruple
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)

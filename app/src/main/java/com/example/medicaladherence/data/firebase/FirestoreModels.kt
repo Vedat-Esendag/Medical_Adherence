@@ -25,7 +25,11 @@ data class FirestoreUserProfile(
 data class FirestoreSettings(
     val fontScale: Float = 1.0f,
     val caretakerPin: String? = null,
-    val highContrastMode: Boolean = false
+    val highContrastMode: Boolean = false,
+    // Caregiver notification preferences
+    val alertThreshold: Int = 70,  // Alert when adherence drops below this %
+    val dailySummaryEnabled: Boolean = false,
+    val dailySummaryTime: String? = null  // "20:00" format, null if disabled
 )
 
 /**
@@ -37,7 +41,11 @@ data class FirestoreCaregiverLink(
     val patientUserId: String = "",
     val patientPin: String = "",
     val patientName: String = "",
-    val addedAt: Timestamp = Timestamp.now()
+    val addedAt: Timestamp = Timestamp.now(),
+    // Editable patient metadata for caregiver
+    val displayName: String? = null,     // Caregiver's custom name ("Mom")
+    val phoneNumber: String? = null,     // For calling patient
+    val notes: String? = null            // Medication/doctor notes
 )
 
 /**
