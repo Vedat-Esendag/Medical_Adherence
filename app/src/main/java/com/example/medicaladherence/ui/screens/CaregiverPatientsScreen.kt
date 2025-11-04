@@ -5,7 +5,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -28,22 +30,22 @@ fun CaregiverPatientsScreen(
     onSelectPatient: (String) -> Unit,
     onRemovePatient: (PatientProfile) -> Unit,
     onManualPinEntry: (String) -> Unit = {},
-    onResyncPatient: (PatientProfile) -> Unit = {}
+    onResyncPatient: (PatientProfile) -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     // Sort patients by addedAt descending (newest first)
     val sortedPatients = remember(patients) {
         patients.sortedByDescending { it.addedAt }
     }
     
-    var showRemoveDialog by remember { mutableStateOf<PatientProfile?>(null) }
-    var showManualPinDialog by remember { mutableStateOf(false) }
-    var showResyncSheet by remember { mutableStateOf<PatientProfile?>(null) }
-    
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("My Patients") },
                 actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, "Settings")
+                    }
                     IconButton(onClick = onScanQR) {
                         Icon(Icons.Default.Add, "Scan QR Code")
                     }
@@ -90,9 +92,6 @@ fun CaregiverPatientsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    TextButton(onClick = { showManualPinDialog = true }) {
-                        Text("Or enter PIN manually")
-                    }
                 }
             }
         } else {
@@ -107,66 +106,11 @@ fun CaregiverPatientsScreen(
                 items(sortedPatients) { patient ->
                     PatientCard(
                         patient = patient,
-                        onSelect = { onSelectPatient(patient.pin) },
-                        onRemove = { showRemoveDialog = patient },
-                        onSync = { showResyncSheet = patient }
+                        onSelect = { onSelectPatient(patient.pin) }
                     )
                 }
             }
         }
-    }
-    
-    // Remove confirmation dialog
-    showRemoveDialog?.let { patient ->
-        AlertDialog(
-            onDismissRequest = { showRemoveDialog = null },
-            title = { Text("Remove Patient") },
-            text = { 
-                Text("Are you sure you want to stop monitoring ${patient.name}? This will remove all their data from your device.")
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onRemovePatient(patient)
-                        showRemoveDialog = null
-                    }
-                ) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemoveDialog = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-    
-    // Manual PIN entry dialog
-    if (showManualPinDialog) {
-        ManualPinEntryDialog(
-            onDismiss = { showManualPinDialog = false },
-            onPinEntered = { pin ->
-                onManualPinEntry(pin)
-                showManualPinDialog = false
-            }
-        )
-    }
-    
-    // Re-sync bottom sheet
-    showResyncSheet?.let { patient ->
-        ResyncBottomSheet(
-            patient = patient,
-            onDismiss = { showResyncSheet = null },
-            onScanQR = {
-                showResyncSheet = null
-                onScanQR()
-            },
-            onManualPin = {
-                showResyncSheet = null
-                showManualPinDialog = true
-            }
-        )
     }
 }
 
@@ -174,184 +118,119 @@ fun CaregiverPatientsScreen(
 private fun PatientCard(
     patient: PatientProfile,
     onSelect: () -> Unit,
-    onRemove: () -> Unit,
+    onRemove: () -> Unit = {},
     onSync: () -> Unit = {}
 ) {
-    val syncStatus = remember(patient.lastSyncedAt) {
-        calculateSyncStatus(patient.lastSyncedAt)
-    }
-    
     val lastSyncDisplay = remember(patient.lastSyncedAt) {
         getRelativeTimeString(patient.lastSyncedAt)
     }
     
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onSelect,
-        colors = CardDefaults.cardColors(
-            containerColor = when (syncStatus) {
-                SyncStatus.FRESH -> MaterialTheme.colorScheme.surfaceVariant
-                SyncStatus.MODERATE -> MaterialTheme.colorScheme.surfaceVariant
-                SyncStatus.STALE -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-            }
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Warning banner for stale data
-            if (syncStatus == SyncStatus.STALE) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Data may be outdated",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+            // Avatar with initials
+            PatientAvatar(
+                name = patient.name,
+                modifier = Modifier.size(48.dp)
+            )
+            
+            // Patient info
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = patient.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "PIN: ${patient.pin}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Text(
+                    text = "${patient.medicationCount} medication(s)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "Synced $lastSyncDisplay",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = patient.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // Sync status indicator
-                        SyncStatusBadge(syncStatus)
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "PIN: ${patient.pin}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text(
-                        text = "${patient.medicationCount} medication(s)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Last sync with icon and relative time
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Sync,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = when (syncStatus) {
-                                SyncStatus.FRESH -> Color(0xFF4CAF50) // Green
-                                SyncStatus.MODERATE -> Color(0xFFFFA726) // Orange
-                                SyncStatus.STALE -> MaterialTheme.colorScheme.error
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = lastSyncDisplay,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = when (syncStatus) {
-                                SyncStatus.FRESH -> Color(0xFF4CAF50)
-                                SyncStatus.MODERATE -> Color(0xFFFFA726)
-                                SyncStatus.STALE -> MaterialTheme.colorScheme.error
-                            }
-                        )
-                    }
-                }
-                
-                // Action buttons column
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    IconButton(onClick = onSync) {
-                        Icon(
-                            Icons.Default.Sync,
-                            "Sync Patient Data",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(onClick = onRemove) {
-                        Icon(
-                            Icons.Default.Delete,
-                            "Remove Patient",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
+            // Chevron arrow
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "View details",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun SyncStatusBadge(status: SyncStatus) {
-    val (color, text) = when (status) {
-        SyncStatus.FRESH -> Color(0xFF4CAF50) to "✓"
-        SyncStatus.MODERATE -> Color(0xFFFFA726) to "!"
-        SyncStatus.STALE -> MaterialTheme.colorScheme.error to "⚠"
+internal fun PatientAvatar(
+    name: String,
+    modifier: Modifier = Modifier
+) {
+    // Get initials from name
+    val initials = remember(name) {
+        name.split(" ")
+            .take(2)
+            .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+            .joinToString("")
+            .ifEmpty { "?" }
+    }
+    
+    // Generate consistent color based on name
+    val backgroundColor = remember(name) {
+        val colors = listOf(
+            Color(0xFF4CAF50), // Green
+            Color(0xFF2196F3), // Blue
+            Color(0xFF9C27B0), // Purple
+            Color(0xFFFF9800), // Orange
+            Color(0xFF00BCD4), // Cyan
+            Color(0xFFE91E63)  // Pink
+        )
+        colors[name.hashCode().mod(colors.size)]
     }
     
     Surface(
-        shape = MaterialTheme.shapes.small,
-        color = color.copy(alpha = 0.2f),
-        modifier = Modifier.size(24.dp)
+        modifier = modifier,
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = backgroundColor
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize()
         ) {
             Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-                fontWeight = FontWeight.Bold
+                text = initials,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         }
-    }
-}
-
-enum class SyncStatus {
-    FRESH,      // < 3 days
-    MODERATE,   // 3-7 days
-    STALE       // > 7 days
-}
-
-fun calculateSyncStatus(lastSyncedAt: Long): SyncStatus {
-    val now = System.currentTimeMillis()
-    val daysSinceSync = (now - lastSyncedAt) / (1000 * 60 * 60 * 24)
-    
-    return when {
-        daysSinceSync < 3 -> SyncStatus.FRESH
-        daysSinceSync < 7 -> SyncStatus.MODERATE
-        else -> SyncStatus.STALE
     }
 }
 
@@ -377,175 +256,3 @@ fun getRelativeTimeString(timestamp: Long): String {
         }
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ResyncBottomSheet(
-    patient: PatientProfile,
-    onDismiss: () -> Unit,
-    onScanQR: () -> Unit,
-    onManualPin: () -> Unit
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Sync ${patient.name}'s Data",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Choose how to update this patient's medication data",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Scan QR Code option
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onScanQR
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Scan QR Code",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Recommended - gets all data",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // Manual PIN option
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onManualPin
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🔢",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Enter PIN",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "For testing/same device only",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            TextButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cancel")
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun ManualPinEntryDialog(
-    onDismiss: () -> Unit,
-    onPinEntered: (String) -> Unit
-) {
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Enter Patient PIN") },
-        text = {
-            Column {
-                Text(
-                    text = "Enter the 6-digit PIN from your patient's app.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = { 
-                        if (it.length <= 6 && it.all { char -> char.isDigit() }) {
-                            pin = it
-                            error = null
-                        }
-                    },
-                    label = { Text("Patient PIN") },
-                    placeholder = { Text("000000") },
-                    isError = error != null,
-                    supportingText = error?.let { { Text(it) } },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    when {
-                        pin.isEmpty() -> error = "Please enter a PIN"
-                        pin.length != 6 -> error = "PIN must be 6 digits"
-                        else -> onPinEntered(pin)
-                    }
-                },
-                enabled = pin.length == 6
-            ) {
-                Text("Add Patient")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-

@@ -364,6 +364,9 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
                         },
                         onManualPinEntry = { pin ->
                             viewModel.importPatientFromPin(pin)
+                        },
+                        onNavigateToSettings = {
+                            navController.navigate("caregiver_settings")
                         }
                     )
                 }
@@ -393,6 +396,29 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
                     factory = CaretakerViewModelFactory(repository, pin)
                 ),
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        
+        composable("caregiver_settings") {
+            val viewModel: CaregiverSettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = CaregiverSettingsViewModelFactory(repository)
+            )
+            
+            CaregiverSettingsScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onAddPatient = {
+                    val hasPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+                    
+                    if (hasPermission) {
+                        navController.navigate("qr_scanner")
+                    } else {
+                        showCameraPermissionDialog = true
+                    }
+                }
             )
         }
     }
