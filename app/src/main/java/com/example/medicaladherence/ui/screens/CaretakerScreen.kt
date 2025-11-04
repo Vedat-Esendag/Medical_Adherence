@@ -86,11 +86,15 @@ fun CaretakerScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Implement in Option C */ }) {
-                        Icon(Icons.Default.Phone, "Call")
+                    IconButton(
+                        onClick = { viewModel.refresh() }
+                    ) {
+                        Icon(Icons.Default.Refresh, "Refresh data")
                     }
-                    IconButton(onClick = { /* TODO: Implement in Option C */ }) {
-                        Icon(Icons.Default.Message, "Message")
+                    IconButton(
+                        onClick = { /* TODO: Implement notification to patient */ }
+                    ) {
+                        Icon(Icons.Default.Notifications, "Notify patient")
                     }
                 }
             )

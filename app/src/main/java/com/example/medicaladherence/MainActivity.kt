@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
@@ -307,7 +308,7 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
             val importStatus by viewModel.importStatus.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
-            var hasNavigated by remember { mutableStateOf(false) }
+            var hasNavigated by rememberSaveable { mutableStateOf(false) }
             
             // Handle import status
             LaunchedEffect(importStatus) {
