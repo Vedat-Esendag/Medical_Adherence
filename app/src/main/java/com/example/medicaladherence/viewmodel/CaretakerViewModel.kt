@@ -20,7 +20,7 @@ data class CaretakerUiState(
     val problematicMedications: List<MedicationAdherence> = emptyList(),
     val medicationBreakdown: List<MedicationAdherence> = emptyList(),
     val adherenceTrend: String = "Stable", // "Improving", "Declining", "Stable"
-    val lastUpdated: String = "",
+    val lastUpdated: Long = 0L, // Timestamp in milliseconds
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -132,10 +132,6 @@ class CaretakerViewModel(
                     // Adherence trend
                     val trend = calculateTrendForPatient(patientPin, weekAgo, today)
 
-                    val lastUpdated = java.time.LocalTime.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-                    )
-
                     android.util.Log.d("CaretakerVM", "✅ Loaded patient data: $patientName, ${medications.size} meds, $weeklyAdherence% weekly adherence")
 
                     _uiState.value = CaretakerUiState(
@@ -150,7 +146,7 @@ class CaretakerViewModel(
                         problematicMedications = problematicMeds,
                         medicationBreakdown = medicationBreakdown,
                         adherenceTrend = trend,
-                        lastUpdated = lastUpdated,
+                        lastUpdated = System.currentTimeMillis(),
                         isLoading = false
                     )
                 } else {
@@ -175,9 +171,6 @@ class CaretakerViewModel(
                     val problematicMeds = medicationBreakdown.filter { it.percentage < 70 }
 
                     val trend = calculateTrend(repository)
-                    val lastUpdated = java.time.LocalTime.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-                    )
 
                     _uiState.value = CaretakerUiState(
                         medicationCount = medications.size,
@@ -189,7 +182,7 @@ class CaretakerViewModel(
                         problematicMedications = problematicMeds,
                         medicationBreakdown = medicationBreakdown,
                         adherenceTrend = trend,
-                        lastUpdated = lastUpdated,
+                        lastUpdated = System.currentTimeMillis(),
                         isLoading = false
                     )
                 }

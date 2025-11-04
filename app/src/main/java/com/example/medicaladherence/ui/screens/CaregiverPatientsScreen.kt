@@ -30,6 +30,11 @@ fun CaregiverPatientsScreen(
     onManualPinEntry: (String) -> Unit = {},
     onResyncPatient: (PatientProfile) -> Unit = {}
 ) {
+    // Sort patients by addedAt descending (newest first)
+    val sortedPatients = remember(patients) {
+        patients.sortedByDescending { it.addedAt }
+    }
+    
     var showRemoveDialog by remember { mutableStateOf<PatientProfile?>(null) }
     var showManualPinDialog by remember { mutableStateOf(false) }
     var showResyncSheet by remember { mutableStateOf<PatientProfile?>(null) }
@@ -46,7 +51,7 @@ fun CaregiverPatientsScreen(
             )
         },
         floatingActionButton = {
-            if (patients.isEmpty()) {
+            if (sortedPatients.isEmpty()) {
                 FloatingActionButton(
                     onClick = onScanQR,
                     containerColor = MaterialTheme.colorScheme.primary
@@ -56,7 +61,7 @@ fun CaregiverPatientsScreen(
             }
         }
     ) { padding ->
-        if (patients.isEmpty()) {
+        if (sortedPatients.isEmpty()) {
             // Empty state
             Box(
                 modifier = Modifier
@@ -99,7 +104,7 @@ fun CaregiverPatientsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(patients) { patient ->
+                items(sortedPatients) { patient ->
                     PatientCard(
                         patient = patient,
                         onSelect = { onSelectPatient(patient.pin) },

@@ -34,6 +34,7 @@ import com.example.medicaladherence.ui.nav.Routes
 import com.example.medicaladherence.ui.screens.*
 import com.example.medicaladherence.ui.theme.MedicalAdherenceTheme
 import com.example.medicaladherence.viewmodel.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -306,6 +307,7 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
             val importStatus by viewModel.importStatus.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
+            var hasNavigated by remember { mutableStateOf(false) }
             
             // Handle import status
             LaunchedEffect(importStatus) {
@@ -323,6 +325,15 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
                         viewModel.resetImportStatus()
                     }
                     else -> {}
+                }
+            }
+            
+            // Adaptive single-patient auto-navigation
+            LaunchedEffect(patients) {
+                if (patients.size == 1 && !hasNavigated) {
+                    delay(400) // Brief transition for smooth UX
+                    hasNavigated = true
+                    navController.navigate("patient_monitor/${patients[0].pin}")
                 }
             }
             

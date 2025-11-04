@@ -1,7 +1,6 @@
 package com.example.medicaladherence.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,21 +20,11 @@ import com.example.medicaladherence.viewmodel.MissedDoseInfo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-// Utility functions for severity-based color coding
-fun getSeverityColor(percentage: Int): Color = when {
-    percentage >= 90 -> Color(0xFF2E7D32)  // Dark Green
-    percentage >= 80 -> Color(0xFF0288D1)  // Blue
-    percentage >= 60 -> Color(0xFFEF6C00)  // Dark Orange
-    percentage >= 40 -> Color(0xFFD32F2F)  // Red
-    else -> Color(0xFF9C27B0)              // Purple
-}
-
-fun getSeverityLabel(percentage: Int): String = when {
-    percentage >= 90 -> "EXCELLENT"
-    percentage >= 80 -> "GOOD"
-    percentage >= 60 -> "CONCERNING"
-    percentage >= 40 -> "CRITICAL"
-    else -> "SEVERE"
+// Utility function for subtle background tints based on adherence
+fun getAdherenceTint(percentage: Int): Color = when {
+    percentage >= 70 -> Color(0xFFE8F5E9)  // Light green
+    percentage >= 30 -> Color(0xFFFFF9C4)  // Light yellow
+    else -> Color(0xFFFFEBEE)              // Light red
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,12 +44,39 @@ fun CaretakerScreen(
                             text = uiState.patientName.ifEmpty { "Loading..." },
                             style = MaterialTheme.typography.titleLarge
                         )
-                        if (uiState.patientPin.isNotEmpty()) {
-                            Text(
-                                text = "PIN: ${uiState.patientPin}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (uiState.patientPin.isNotEmpty()) {
+                                Text(
+                                    text = "PIN: ${uiState.patientPin}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "•",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = getRelativeTimeString(uiState.lastUpdated),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 },
@@ -81,44 +96,58 @@ fun CaretakerScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // 1. Hero Status Card
-            item {
-                HeroStatusCard(
-                    weeklyAdherence = uiState.weeklyAdherence,
-                    monthlyAdherence = uiState.monthlyAdherence,
-                    currentStreak = uiState.currentStreak,
-                    longestStreak = uiState.longestStreak,
-                    trend = uiState.adherenceTrend
-                )
-            }
-
-            // 2. Needs Attention Section Header (Only if <80% meds exist)
-            val problematicMeds = uiState.medicationBreakdown.filter { it.percentage < 80 }
-            
-            if (problematicMeds.isNotEmpty()) {
-                item {
+        if (uiState.isLoading) {
+            // Loading state
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Text(
-                        text = "🚨 NEEDS ATTENTION (${problematicMeds.size})",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F),
-                        modifier = Modifier.padding(16.dp, 24.dp, 16.dp, 8.dp)
+                        text = "Loading patient data...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        } else {
+            // Content loaded
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // 1. Hero Status Card
+                item {
+                    HeroStatusCard(
+                        weeklyAdherence = uiState.weeklyAdherence,
+                        monthlyAdherence = uiState.monthlyAdherence,
+                        currentStreak = uiState.currentStreak,
+                        longestStreak = uiState.longestStreak,
+                        trend = uiState.adherenceTrend
+                    )
+                }
 
-            // 3. Problematic Medication Cards
-            items(problematicMeds) { med ->
-                SeverityMedicationCard(
-                    medication = med,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-            }
+                // 2. Needs Attention Section (Compact)
+                val problematicMeds = uiState.medicationBreakdown.filter { it.percentage < 70 }
+            
+                if (problematicMeds.isNotEmpty()) {
+                    item {
+                        CompactNeedsAttentionSection(
+                            problematicMeds = problematicMeds,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
 
             // 4. Missed Doses Timeline
             item {
@@ -134,9 +163,165 @@ fun CaretakerScreen(
                 )
             }
 
-            // Bottom padding
-            item {
-                Spacer(Modifier.height(32.dp))
+                // Bottom padding
+                item {
+                    Spacer(Modifier.height(32.dp))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CompactNeedsAttentionSection(
+    problematicMeds: List<MedicationAdherence>,
+    modifier: Modifier = Modifier
+) {
+    var showBottomSheet by remember { mutableStateOf(false) }
+    
+    Column(modifier = modifier) {
+        Text(
+            text = "Needs Attention",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 24.dp, horizontal = 0.dp)
+        )
+        
+        // Show top 3 compact cards
+        val topThree = problematicMeds.take(3)
+        topThree.forEach { med ->
+            CompactAttentionCard(
+                medication = med,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        
+        // "View all" button if more than 3
+        if (problematicMeds.size > 3) {
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = { showBottomSheet = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("View all (${problematicMeds.size - 3} more)")
+            }
+        }
+    }
+    
+    // Bottom sheet with full list
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "All Medications Needing Attention",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                problematicMeds.forEach { med ->
+                    SeverityMedicationCard(
+                        medication = med,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactAttentionCard(
+    medication: MedicationAdherence,
+    modifier: Modifier = Modifier
+) {
+    val percentage = medication.percentage
+    val missedCount = medication.totalCount - medication.takenCount
+    
+    // Get color based on severity
+    val severityColor = when {
+        percentage >= 70 -> Color(0xFF2E7D32)  // Green (shouldn't happen in this section)
+        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
+        else -> Color(0xFFD32F2F)              // Red
+    }
+    
+    val backgroundColor = when {
+        percentage >= 70 -> Color(0xFFE8F5E9)
+        percentage >= 30 -> Color(0xFFFFF9C4)
+        else -> Color(0xFFFFEBEE)
+    }
+    
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = backgroundColor
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Color indicator bar
+            Surface(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(48.dp),
+                color = severityColor,
+                shape = RoundedCornerShape(2.dp)
+            ) {}
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Middle: Medication info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = medication.medicationName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (missedCount > 0) "$missedCount dose${if (missedCount > 1) "s" else ""} missed" else "No doses scheduled",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // Right: Percentage badge
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = severityColor.copy(alpha = 0.15f),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text(
+                    text = "$percentage%",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = severityColor,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
             }
         }
     }
@@ -151,107 +336,69 @@ fun HeroStatusCard(
     trend: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                weeklyAdherence >= 90 -> Color(0xFF2E7D32).copy(alpha = 0.1f)
-                weeklyAdherence >= 80 -> Color(0xFF0288D1).copy(alpha = 0.1f)
-                weeklyAdherence >= 60 -> Color(0xFFEF6C00).copy(alpha = 0.1f)
-                else -> Color(0xFFD32F2F).copy(alpha = 0.1f)
-            }
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Large circular progress indicator
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(140.dp)
-            ) {
-                CircularProgressIndicator(
-                    progress = { weeklyAdherence / 100f },
-                    modifier = Modifier.fillMaxSize(),
-                    strokeWidth = 12.dp,
-                    color = getSeverityColor(weeklyAdherence),
-                    trackColor = getSeverityColor(weeklyAdherence).copy(alpha = 0.2f)
-                )
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$weeklyAdherence%",
-                        style = MaterialTheme.typography.displayLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = getSeverityColor(weeklyAdherence)
-                    )
-                    Text(
-                        text = "THIS WEEK",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            // Large percentage display
+            Text(
+                text = "$weeklyAdherence%",
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "This Week",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
 
             Spacer(Modifier.height(16.dp))
-
-            // Trend indicator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = when {
-                        trend.contains("Improving", ignoreCase = true) -> Icons.Default.TrendingUp
-                        trend.contains("Declining", ignoreCase = true) -> Icons.Default.TrendingDown
-                        else -> Icons.Default.TrendingFlat
-                    },
-                    contentDescription = null,
-                    tint = when {
-                        trend.contains("Improving", ignoreCase = true) -> Color(0xFF2E7D32)
-                        trend.contains("Declining", ignoreCase = true) -> Color(0xFFD32F2F)
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = trend,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+            Spacer(Modifier.height(16.dp))
 
             // Quick stats row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                QuickStat("Month", "$monthlyAdherence%")
-                QuickStat("Streak", "$currentStreak🔥")
-                QuickStat("Best", "$longestStreak days")
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Month",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "$monthlyAdherence%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Streak",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "$currentStreak days",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-fun QuickStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -261,28 +408,19 @@ fun SeverityMedicationCard(
     modifier: Modifier = Modifier
 ) {
     val percentage = medication.percentage
-    val severityColor = getSeverityColor(percentage)
-    val severityLabel = getSeverityLabel(percentage)
-
-    // Border thickness based on severity
-    val borderWidth = when {
-        percentage < 40 -> 3.dp
-        percentage < 60 -> 2.dp
-        else -> 1.dp
+    val tintColor = getAdherenceTint(percentage)
+    
+    // Get color for percentage text
+    val percentageColor = when {
+        percentage >= 70 -> Color(0xFF2E7D32)  // Green
+        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
+        else -> Color(0xFFD32F2F)              // Red
     }
 
-    Card(
+    ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = severityColor.copy(alpha = 0.08f)
-        ),
-        border = BorderStroke(borderWidth, severityColor.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = when {
-                percentage < 40 -> 6.dp
-                percentage < 60 -> 3.dp
-                else -> 1.dp
-            }
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = tintColor
         )
     ) {
         Column(
@@ -290,107 +428,43 @@ fun SeverityMedicationCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Header row: Severity badge + Name + Percentage
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Severity badge
-                Surface(
-                    color = severityColor,
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text(
-                        text = severityLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = medication.medicationName,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "${medication.medicationName} ${medication.dosage}",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        text = medication.dosage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Spacer(Modifier.height(4.dp))
+                    if (medication.totalCount > 0) {
+                        val missedCount = medication.totalCount - medication.takenCount
+                        Text(
+                            text = when {
+                                percentage < 30 -> "Only $percentage% taken this week"
+                                missedCount > 0 -> "$missedCount of ${medication.totalCount} doses missed"
+                                else -> "All doses taken this week"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "No scheduled doses",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Text(
-                    text = if (medication.totalCount == 0) "No data" else "$percentage%",
-                    style = MaterialTheme.typography.headlineMedium,
+                    text = if (medication.totalCount == 0) "—" else "$percentage%",
+                    style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
-                    color = severityColor
+                    color = percentageColor
                 )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Progress bar
-            if (medication.totalCount > 0) {
-                Column {
-                    LinearProgressIndicator(
-                        progress = { percentage / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = severityColor,
-                        trackColor = severityColor.copy(alpha = 0.2f)
-                    )
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Text(
-                        text = "${medication.takenCount} of ${medication.totalCount} doses taken (Last 7 days)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Action buttons (placeholders for now - will be functional in Option C)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { /* TODO: Will be implemented in Option C */ },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Visibility,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Details")
-                    }
-
-                    Button(
-                        onClick = { /* TODO: Will be implemented in Option C */ },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = severityColor
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.NotificationImportant,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Remind")
-                    }
-                }
             }
         }
     }
@@ -405,7 +479,7 @@ fun GroupedMissedDosesSection(
 
     Column(modifier = modifier) {
         Text(
-            text = "📅 RECENT MISSED DOSES (${missedDoses.size})",
+            text = "Recent Missed Doses",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(16.dp, 24.dp, 16.dp, 8.dp)
@@ -413,12 +487,12 @@ fun GroupedMissedDosesSection(
 
         if (missedDoses.isEmpty()) {
             // Empty state celebration
-            Card(
+            ElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2E7D32).copy(alpha = 0.1f)
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(
@@ -430,18 +504,17 @@ fun GroupedMissedDosesSection(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = Color(0xFF2E7D32),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = "No Missed Doses!",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2E7D32)
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Patient is doing great! 🎉",
+                        text = "Patient is doing great!",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -509,44 +582,36 @@ fun GroupedMissedDosesSection(
 
 @Composable
 fun MissedDoseItem(dose: MissedDoseInfo) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFEBEE) // Light red
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color(0xFFFFEBEE) // Light red tint
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Cancel,
-                contentDescription = null,
-                tint = Color(0xFFD32F2F),
-                modifier = Modifier.size(24.dp)
-            )
-
-            Spacer(Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = dose.medicationName,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = dose.dosage,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Text(
                 text = dose.time,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFD32F2F)
             )
         }
     }
@@ -610,38 +675,46 @@ fun AllMedicationsSection(
 
 @Composable
 fun CompactMedicationCard(medication: MedicationAdherence) {
-    val severityColor = getSeverityColor(medication.percentage)
+    val percentage = medication.percentage
+    
+    // Get color for percentage text
+    val percentageColor = when {
+        percentage >= 70 -> Color(0xFF2E7D32)  // Green
+        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
+        else -> Color(0xFFD32F2F)              // Red
+    }
 
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = severityColor.copy(alpha = 0.05f)
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = medication.medicationName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium
+                    text = "${medication.medicationName} ${medication.dosage}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = if (medication.totalCount == 0) "No data" else "${medication.takenCount}/${medication.totalCount} doses",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = if (medication.totalCount == 0) "No scheduled doses" else "${medication.takenCount}/${medication.totalCount} doses taken",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Text(
-                text = if (medication.totalCount == 0) "N/A" else "${medication.percentage}%",
-                style = MaterialTheme.typography.titleLarge,
+                text = if (medication.totalCount == 0) "—" else "$percentage%",
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = severityColor
+                color = percentageColor
             )
         }
     }
