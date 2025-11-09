@@ -1,5 +1,6 @@
 package com.example.medicaladherence.data.model
 
+import com.example.medicaladherence.utils.AppConstants
 import com.google.gson.Gson
 import java.time.LocalDate
 
@@ -13,6 +14,13 @@ data class PatientDataExport(
     val doseEvents: List<DoseEventExport>,
     val exportedAt: Long = System.currentTimeMillis()
 ) {
+    init {
+        require(pin.length == AppConstants.PIN_LENGTH && pin.all { it.isDigit() }) { 
+            "PIN must be exactly ${AppConstants.PIN_LENGTH} digits" 
+        }
+        require(name.isNotBlank()) { "Patient name cannot be blank" }
+    }
+    
     fun toJson(): String {
         return Gson().toJson(this)
     }
@@ -40,6 +48,12 @@ data class MedicationExport(
     val frequency: String,
     val specificDays: List<Int>
 ) {
+    init {
+        require(name.isNotBlank()) { "Medication name cannot be blank" }
+        require(dosage.isNotBlank()) { "Medication dosage cannot be blank" }
+        require(times.isNotEmpty()) { "Medication must have at least one scheduled time" }
+    }
+    
     fun toMedication(): Medication {
         return Medication(
             id = id,

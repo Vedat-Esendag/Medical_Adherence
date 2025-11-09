@@ -30,4 +30,20 @@ data class Medication(
     val notes: String? = null,
     val frequency: MedicationFrequency = MedicationFrequency.Daily,
     val specificDays: List<Int> = emptyList()
-)
+) {
+    init {
+        require(name.isNotBlank()) { "Medication name cannot be blank" }
+        require(dosage.isNotBlank()) { "Medication dosage cannot be blank" }
+        require(times.isNotEmpty()) { "Medication must have at least one scheduled time" }
+        times.forEach { time ->
+            require(time.matches(Regex("\\d{2}:\\d{2}"))) { 
+                "Time must be in HH:mm format, got: $time" 
+            }
+        }
+        specificDays.forEach { day ->
+            require(day in 1..7) { 
+                "Specific days must be between 1 (Monday) and 7 (Sunday), got: $day" 
+            }
+        }
+    }
+}

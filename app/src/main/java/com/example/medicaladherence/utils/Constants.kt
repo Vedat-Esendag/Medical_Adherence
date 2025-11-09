@@ -34,5 +34,11 @@ object AppConstants {
     
     // StateFlow Configuration
     const val STATEFLOW_TIMEOUT_MS = 5000L
+    
+    // Trend Analysis
+    const val TREND_THRESHOLD_PERCENT = 10
+    
+    // Reporting Limits
+    const val RECENT_MISSED_DOSES_LIMIT = 10
 }
 

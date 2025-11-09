@@ -1,3 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App Name -->
     <string name="app_name">Medical Adherence</string>
+    
+    <!-- Error Messages -->
+    <string name="error_patient_not_found">Patient not found. Make sure:\n• The PIN is correct (%s)\n• Patient has signed out and back in (recreates profile)\n• Patient and caregiver are using different profiles on this device\n• For separate devices, use QR code instead</string>
+    <string name="error_pin_format">PIN must be %d digits</string>
+    <string name="error_add_patient_failed">Failed to add patient. Please try again.</string>
+    <string name="error_remove_patient_failed">Failed to remove patient. Please try again.</string>
+    <string name="error_patient_already_added">This patient is already in your list</string>
+    <string name="error_qr_generation_failed">Failed to generate QR code</string>
+    <string name="error_save_profile_failed">Failed to save profile. Please try again.</string>
+    <string name="error_load_data_failed">Failed to load patient data: %s</string>
+    
+    <!-- Button Labels -->
+    <string name="button_taken">Taken</string>
+    <string name="button_missed">Missed</string>
+    <string name="button_snooze_format">Snooze %dm</string>
+    <string name="button_undo">Undo</string>
+    <string name="button_add_patient">Add Patient</string>
+    <string name="button_refresh">Refresh</string>
+    
+    <!-- Snackbar Messages -->
+    <string name="snackbar_dose_taken">Dose marked as taken</string>
+    <string name="snackbar_dose_missed">Dose marked as missed</string>
+    <string name="snackbar_snoozed_format">Snoozed for %d minutes</string>
+    <string name="snackbar_action_undone">Action undone</string>
+    <string name="snackbar_patient_added">Patient added successfully!</string>
+    <string name="snackbar_medication_deleted">Medication deleted</string>
+    
+    <!-- Screen Titles -->
+    <string name="screen_title_home">Home</string>
+    <string name="screen_title_medications">Medications</string>
+    <string name="screen_title_stats">Stats</string>
+    <string name="screen_title_settings">Settings</string>
+    
+    <!-- Adherence Feedback -->
+    <string name="feedback_excellent">Excellent work! You\'re staying on track with your medications.</string>
+    <string name="feedback_good">Good job! Keep up the consistency.</string>
+    <string name="feedback_fair">You\'re doing okay. Try to improve your consistency.</string>
+    <string name="feedback_needs_improvement">Let\'s work on building a better routine together.</string>
 </resources>

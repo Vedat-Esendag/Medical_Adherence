@@ -38,6 +38,20 @@ data class DoseItem(
     val taken: Boolean?
 )
 
+/**
+ * ViewModel for the home screen, managing dose tracking and countdown display.
+ * 
+ * Key Features:
+ * - Real-time countdown to next scheduled dose
+ * - Today's dose list with taken/missed status
+ * - Quick actions: Mark taken, Mark missed, Snooze
+ * - Undo functionality for recent actions
+ * - Weekly adherence summary
+ * - Current streak tracking
+ * - Dose window detection (±30 minutes from scheduled time)
+ * 
+ * @param repository The medication data repository
+ */
 class HomeViewModel(
     private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
@@ -47,6 +61,12 @@ class HomeViewModel(
 
     private lateinit var notificationScheduler: NotificationScheduler
 
+    /**
+     * Initializes the ViewModel with notification scheduler and starts data loading.
+     * Must be called once when the screen is first created.
+     * 
+     * @param context Application context for notification scheduling
+     */
     fun initialize(context: Context) {
         notificationScheduler = NotificationScheduler(context)
     }
@@ -132,6 +152,12 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Marks a scheduled dose as taken.
+     * 
+     * @param medId The medication's unique identifier
+     * @param time The scheduled time in HH:mm format
+     */
     fun markTaken(medId: String, time: String) {
         viewModelScope.launch {
             repository.markDose(medId, LocalDate.now(), time, taken = true)
@@ -141,6 +167,12 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Marks a scheduled dose as missed.
+     * 
+     * @param medId The medication's unique identifier
+     * @param time The scheduled time in HH:mm format
+     */
     fun markMissed(medId: String, time: String) {
         viewModelScope.launch {
             repository.markDose(medId, LocalDate.now(), time, taken = false)
@@ -150,11 +182,24 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Snoozes a scheduled dose reminder for 15 minutes.
+     * The dose remains pending but the notification is rescheduled.
+     * 
+     * @param medId The medication's unique identifier
+     * @param time The scheduled time in HH:mm format
+     */
     fun snooze15(medId: String, time: String) {
         repository.snooze(medId, time, AppConstants.SNOOZE_DURATION_MINUTES)
         showSnackbar("Snoozed for ${AppConstants.SNOOZE_DURATION_MINUTES} minutes")
     }
 
+    /**
+     * Undoes a dose action, resetting it back to pending status.
+     * 
+     * @param medId The medication's unique identifier
+     * @param time The scheduled time in HH:mm format
+     */
     fun undoDose(medId: String, time: String) {
         viewModelScope.launch {
             repository.undoDose(medId, LocalDate.now(), time)
@@ -164,6 +209,10 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Undoes the most recent dose action (taken or missed).
+     * Uses the tracked last marked dose from the UI state.
+     */
     fun undoLastMarkedDose() {
         val lastMarked = _uiState.value.lastMarkedDose ?: return
         undoDose(lastMarked.first, lastMarked.second)
@@ -187,6 +236,9 @@ class HomeViewModel(
         _uiState.value = _uiState.value.copy(snackbarMessage = message)
     }
 
+    /**
+     * Clears the current snackbar message from the UI state.
+     */
     fun clearSnackbar() {
         _uiState.value = _uiState.value.copy(snackbarMessage = null)
     }

@@ -31,3 +31,16 @@ val HighContrastError = Color(0xFFFF0000) // Bright red
 val HighContrastOnBackground = Color(0xFFFFFFFF) // White text
 val HighContrastOnSurface = Color(0xFFFFFFFF) // White text
 val HighContrastOutline = Color(0xFFFFFFFF) // White borders
+
+// Adherence Level Colors (semantic naming)
+object AdherenceColors {
+    // Background tints for adherence cards
+    val ExcellentBg = Color(0xFFE8F5E9)       // Light green
+    val GoodBg = Color(0xFFFFF9C4)            // Light yellow
+    val WarningBg = Color(0xFFFFEBEE)         // Light red
+    
+    // Text/foreground colors for adherence levels
+    val ExcellentText = Color(0xFF2E7D32)     // Dark green
+    val GoodText = Color(0xFFEF6C00)          // Orange
+    val WarningText = Color(0xFFC62828)       // Dark red
+}

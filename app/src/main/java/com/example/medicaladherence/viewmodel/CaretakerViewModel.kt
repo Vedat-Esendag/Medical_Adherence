@@ -41,6 +41,23 @@ data class TodayDoseInfo(
     val taken: Boolean?  // null = pending, true = taken, false = missed
 )
 
+/**
+ * ViewModel for monitoring medication adherence and patient health metrics.
+ * 
+ * Supports two modes:
+ * - **Current User Mode**: When `patientPin` is null, displays data for the logged-in user
+ * - **Caregiver Mode**: When `patientPin` is provided, displays data for a specific patient
+ * 
+ * Key Features:
+ * - Real-time medication tracking
+ * - Weekly and monthly adherence calculations
+ * - Streak tracking (current and longest)
+ * - Problematic medication identification
+ * - Adherence trend analysis (Improving/Declining/Stable)
+ * 
+ * @param repository The medication data repository
+ * @param patientPin Optional PIN for monitoring a specific patient (caregiver mode)
+ */
 class CaretakerViewModel(
     private val repository: FirebaseMedicationRepository,
     private val patientPin: String? = null
@@ -77,6 +94,10 @@ class CaretakerViewModel(
         loadCaretakerData()
     }
 
+    /**
+     * Loads all caretaker/monitoring data and updates the UI state.
+     * Automatically selects between patient-specific or current user data loading.
+     */
     private fun loadCaretakerData() {
         viewModelScope.launch {
             try {
@@ -86,133 +107,13 @@ class CaretakerViewModel(
                 val weekAgo = today.minusDays((AppConstants.DAYS_IN_WEEK - 1).toLong())
                 val monthAgo = today.minusDays((AppConstants.DAYS_IN_MONTH - 1).toLong())
 
-                // If monitoring a specific patient
-                if (patientPin != null) {
-                    // Get patient name
-                    val patientData = repository.getPatientDataByPin(patientPin)
-                    val patientName = patientData?.name ?: "Patient"
-
-                    // Calculate adherence using patient-specific methods
-                    val weeklyAdherence = repository.calculatePatientAdherence(patientPin, weekAgo, today)
-                    val monthlyAdherence = repository.calculatePatientAdherence(patientPin, monthAgo, today)
-
-                    // Get medications and dose events
-                    val medications = repository.getMedicationsForPatientByPin(patientPin).first()
-                    val doseEvents = repository.getDoseEventsForPatientByPin(patientPin, weekAgo, today)
-
-                    // Get today's doses
-                    val todayDoses = repository.getTodayDosesForPatientByPin(patientPin).map { (med, time, taken) ->
-                        TodayDoseInfo(
-                            medicationName = med.name,
-                            dosage = med.dosage,
-                            time = time,
-                            taken = taken
-                        )
-                    }
-
-                    // Calculate streak for patient
-                    val currentStreak = calculateStreakForPatient(medications, doseEvents, today)
-
-                    // Get recent missed doses
-                    val missedDoses = calculateMissedDosesForPatient(medications, doseEvents, weekAgo, today)
-
-                    // All medication adherence breakdown
-                    val medicationBreakdown = medications.map { med ->
-                        var expected = 0
-                        var taken = 0
-                        
-                        var date = weekAgo
-                        while (!date.isAfter(today)) {
-                            expected += med.times.size
-                            taken += med.times.count { time ->
-                                doseEvents.any { 
-                                    it.medId == med.id && it.date == date && it.time == time && it.taken 
-                                }
-                            }
-                            date = date.plusDays(1)
-                        }
-                        
-                        val percentage = if (expected > 0) (taken * 100) / expected else 0
-                        
-                        MedicationAdherence(
-                            medicationName = med.name,
-                            dosage = med.dosage,
-                            percentage = percentage,
-                            takenCount = taken,
-                            totalCount = expected
-                        )
-                    }.sortedBy { it.percentage }
-
-                    // Problematic medications (< threshold adherence)
-                    val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
-
-                    // Adherence trend
-                    val trend = calculateTrendForPatient(patientPin, weekAgo, today)
-
-                    _uiState.value = CaretakerUiState(
-                        patientName = patientName,
-                        patientPin = patientPin,
-                        medicationCount = medications.size,
-                        weeklyAdherence = weeklyAdherence,
-                        monthlyAdherence = monthlyAdherence,
-                        currentStreak = currentStreak,
-                        longestStreak = currentStreak, // TODO: Calculate longest streak
-                        todayDoses = todayDoses,
-                        recentMissedDoses = missedDoses,
-                        problematicMedications = problematicMeds,
-                        medicationBreakdown = medicationBreakdown,
-                        adherenceTrend = trend,
-                        lastUpdated = System.currentTimeMillis(),
-                        isLoading = false
-                    )
+                val uiState = if (patientPin != null) {
+                    loadPatientData(patientPin, today, weekAgo, monthAgo)
                 } else {
-                    // Use current user's data (original behavior)
-                    val weeklyAdherence = repository.calculateWeeklyAdherence()
-                    val monthlyAdherence = repository.calculateMonthlyAdherence()
-                    val currentStreak = repository.calculateStreak()
-                    val longestStreak = repository.calculateLongestStreak()
-                    val missedDoses = repository.getRecentMissedDoses(AppConstants.DAYS_IN_WEEK)
-                    val medications = repository.medications.first()
-
-                    // Get today's doses
-                    val todayDoses = repository.getTodayDoses().map { (med, time, taken) ->
-                        TodayDoseInfo(
-                            medicationName = med.name,
-                            dosage = med.dosage,
-                            time = time,
-                            taken = taken
-                        )
-                    }
-
-                    // All medication adherence breakdown
-                    val medicationBreakdown = medications.map { med ->
-                        repository.calculateMedicationAdherence(
-                            medId = med.id,
-                            startDate = weekAgo,
-                            endDate = today
-                        )
-                    }.sortedBy { it.percentage }
-
-                    // Problematic medications (< threshold adherence)
-                    val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
-
-                    val trend = calculateTrend(repository)
-
-                    _uiState.value = CaretakerUiState(
-                        medicationCount = medications.size,
-                        weeklyAdherence = weeklyAdherence,
-                        monthlyAdherence = monthlyAdherence,
-                        currentStreak = currentStreak,
-                        longestStreak = longestStreak,
-                        todayDoses = todayDoses,
-                        recentMissedDoses = missedDoses,
-                        problematicMedications = problematicMeds,
-                        medicationBreakdown = medicationBreakdown,
-                        adherenceTrend = trend,
-                        lastUpdated = System.currentTimeMillis(),
-                        isLoading = false
-                    )
+                    loadCurrentUserData(today, weekAgo, monthAgo)
                 }
+
+                _uiState.value = uiState
             } catch (e: Exception) {
                 android.util.Log.e("CaretakerVM", "❌ Error loading caretaker data", e)
                 _uiState.value = _uiState.value.copy(
@@ -221,6 +122,166 @@ class CaretakerViewModel(
                 )
             }
         }
+    }
+
+    /**
+     * Loads comprehensive adherence data for a specific patient (caregiver mode).
+     * 
+     * @param pin The patient's unique PIN
+     * @param today Current date for calculations
+     * @param weekAgo Start of the weekly tracking period
+     * @param monthAgo Start of the monthly tracking period
+     * @return Complete UI state with all patient metrics
+     */
+    private suspend fun loadPatientData(
+        pin: String,
+        today: LocalDate,
+        weekAgo: LocalDate,
+        monthAgo: LocalDate
+    ): CaretakerUiState {
+        val patientData = repository.getPatientDataByPin(pin)
+        val patientName = patientData?.name ?: "Patient"
+
+        val weeklyAdherence = repository.calculatePatientAdherence(pin, weekAgo, today)
+        val monthlyAdherence = repository.calculatePatientAdherence(pin, monthAgo, today)
+
+        val medications = repository.getMedicationsForPatientByPin(pin).first()
+        val doseEvents = repository.getDoseEventsForPatientByPin(pin, weekAgo, today)
+
+        val todayDoses = repository.getTodayDosesForPatientByPin(pin).map { (med, time, taken) ->
+            TodayDoseInfo(
+                medicationName = med.name,
+                dosage = med.dosage,
+                time = time,
+                taken = taken
+            )
+        }
+
+        val currentStreak = calculateStreakForPatient(medications, doseEvents, today)
+        val missedDoses = calculateMissedDosesForPatient(medications, doseEvents, weekAgo, today)
+        val medicationBreakdown = calculateMedicationStats(medications, doseEvents, weekAgo, today)
+        val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
+        val trend = calculateTrendForPatient(pin, weekAgo, today)
+
+        return CaretakerUiState(
+            patientName = patientName,
+            patientPin = pin,
+            medicationCount = medications.size,
+            weeklyAdherence = weeklyAdherence,
+            monthlyAdherence = monthlyAdherence,
+            currentStreak = currentStreak,
+            longestStreak = currentStreak,
+            todayDoses = todayDoses,
+            recentMissedDoses = missedDoses,
+            problematicMedications = problematicMeds,
+            medicationBreakdown = medicationBreakdown,
+            adherenceTrend = trend,
+            lastUpdated = System.currentTimeMillis(),
+            isLoading = false
+        )
+    }
+
+    /**
+     * Loads comprehensive adherence data for the currently logged-in user.
+     * 
+     * @param today Current date for calculations
+     * @param weekAgo Start of the weekly tracking period
+     * @param monthAgo Start of the monthly tracking period
+     * @return Complete UI state with all user metrics
+     */
+    private suspend fun loadCurrentUserData(
+        today: LocalDate,
+        weekAgo: LocalDate,
+        monthAgo: LocalDate
+    ): CaretakerUiState {
+        val weeklyAdherence = repository.calculateWeeklyAdherence()
+        val monthlyAdherence = repository.calculateMonthlyAdherence()
+        val currentStreak = repository.calculateStreak()
+        val longestStreak = repository.calculateLongestStreak()
+        val missedDoses = repository.getRecentMissedDoses(AppConstants.DAYS_IN_WEEK)
+        val medications = repository.medications.first()
+
+        val todayDoses = repository.getTodayDoses().map { (med, time, taken) ->
+            TodayDoseInfo(
+                medicationName = med.name,
+                dosage = med.dosage,
+                time = time,
+                taken = taken
+            )
+        }
+
+        val medicationBreakdown = medications.map { med ->
+            repository.calculateMedicationAdherence(
+                medId = med.id,
+                startDate = weekAgo,
+                endDate = today
+            )
+        }.sortedBy { it.percentage }
+
+        val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
+        val trend = calculateTrend(repository)
+
+        return CaretakerUiState(
+            medicationCount = medications.size,
+            weeklyAdherence = weeklyAdherence,
+            monthlyAdherence = monthlyAdherence,
+            currentStreak = currentStreak,
+            longestStreak = longestStreak,
+            todayDoses = todayDoses,
+            recentMissedDoses = missedDoses,
+            problematicMedications = problematicMeds,
+            medicationBreakdown = medicationBreakdown,
+            adherenceTrend = trend,
+            lastUpdated = System.currentTimeMillis(),
+            isLoading = false
+        )
+    }
+
+    /**
+     * Calculates adherence statistics for all medications over a date range.
+     * 
+     * For each medication, computes:
+     * - Expected doses (based on scheduled times and date range)
+     * - Actual taken doses
+     * - Adherence percentage
+     * 
+     * @param medications List of medications to analyze
+     * @param doseEvents Historical dose events (taken/missed records)
+     * @param startDate Start of analysis period (inclusive)
+     * @param endDate End of analysis period (inclusive)
+     * @return List of medication adherence stats, sorted by percentage (lowest first)
+     */
+    private fun calculateMedicationStats(
+        medications: List<com.example.medicaladherence.data.model.Medication>,
+        doseEvents: List<com.example.medicaladherence.data.model.DoseEvent>,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): List<MedicationAdherence> {
+        return medications.map { med ->
+            var expected = 0
+            var taken = 0
+
+            var date = startDate
+            while (!date.isAfter(endDate)) {
+                expected += med.times.size
+                taken += med.times.count { time ->
+                    doseEvents.any {
+                        it.medId == med.id && it.date == date && it.time == time && it.taken
+                    }
+                }
+                date = date.plusDays(1)
+            }
+
+            val percentage = if (expected > 0) (taken * 100) / expected else 0
+
+            MedicationAdherence(
+                medicationName = med.name,
+                dosage = med.dosage,
+                percentage = percentage,
+                takenCount = taken,
+                totalCount = expected
+            )
+        }.sortedBy { it.percentage }
     }
 
     private fun calculateStreakForPatient(
@@ -283,7 +344,7 @@ class CaretakerViewModel(
             date = date.plusDays(1)
         }
         
-        return missed.take(10) // Return most recent 10
+        return missed.take(AppConstants.RECENT_MISSED_DOSES_LIMIT)
     }
 
     private fun calculateProblematicMedsForPatient(
@@ -331,8 +392,8 @@ class CaretakerViewModel(
         val lastWeekAdherence = repository.calculatePatientAdherence(pin, lastWeekStart, lastWeekEnd)
 
         return when {
-            thisWeekAdherence > lastWeekAdherence + 10 -> "Improving"
-            thisWeekAdherence < lastWeekAdherence - 10 -> "Declining"
+            thisWeekAdherence > lastWeekAdherence + AppConstants.TREND_THRESHOLD_PERCENT -> "Improving"
+            thisWeekAdherence < lastWeekAdherence - AppConstants.TREND_THRESHOLD_PERCENT -> "Declining"
             else -> "Stable"
         }
     }
@@ -347,12 +408,16 @@ class CaretakerViewModel(
         val lastWeekAdherence = repository.calculateAdherenceForPeriod(twoWeeksAgo, oneWeekAgo)
 
         return when {
-            thisWeekAdherence > lastWeekAdherence + 10 -> "Improving"
-            thisWeekAdherence < lastWeekAdherence - 10 -> "Declining"
+            thisWeekAdherence > lastWeekAdherence + AppConstants.TREND_THRESHOLD_PERCENT -> "Improving"
+            thisWeekAdherence < lastWeekAdherence - AppConstants.TREND_THRESHOLD_PERCENT -> "Declining"
             else -> "Stable"
         }
     }
 
+    /**
+     * Refreshes all caretaker data from the repository.
+     * Useful for pull-to-refresh or manual data updates.
+     */
     fun refresh() {
         loadCaretakerData()
     }

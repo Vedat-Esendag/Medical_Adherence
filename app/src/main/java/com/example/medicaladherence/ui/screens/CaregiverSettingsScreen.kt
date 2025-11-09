@@ -224,8 +224,9 @@ private fun NotificationSettingsSection(
                 )
             }
             
-            // TODO: Add time picker when daily summary is enabled
-            // TODO: Integrate with FCM for actual push notifications
+            // Future enhancements:
+            // - Time picker for daily summary scheduling
+            // - FCM integration for actual push notifications
             
             // Info text
             Text(

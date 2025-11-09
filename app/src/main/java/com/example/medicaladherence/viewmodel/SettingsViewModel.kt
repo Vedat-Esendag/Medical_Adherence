@@ -14,6 +14,21 @@ data class SettingsUiState(
     val fontScale: Float = 1.0f
 )
 
+/**
+ * ViewModel for managing user profile settings and app preferences.
+ * 
+ * Key Features:
+ * - User profile management (role: Patient/Caregiver, name, PIN)
+ * - QR code generation for caregiver pairing
+ * - App settings (accessibility, notifications)
+ * - Profile validation and state management
+ * 
+ * User Roles:
+ * - **Patient**: Has a 6-digit PIN for caregiver pairing
+ * - **Caregiver**: Can monitor multiple patients via PIN
+ * 
+ * @param repository The medication data repository
+ */
 class SettingsViewModel(
     private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 ) : ViewModel() {
@@ -73,7 +88,17 @@ class SettingsViewModel(
         .map { it?.highContrastMode ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS), false)
 
-    // Save user profile (patient or caregiver)
+    /**
+     * Sets the user's profile type and name.
+     * 
+     * For patients: Automatically generates a unique 6-digit PIN for caregiver pairing.
+     * For caregivers: No PIN is generated.
+     * 
+     * Updates local state immediately for instant UI feedback, then persists to Firebase.
+     * 
+     * @param profile The profile type: "patient" or "caregiver"
+     * @param name The user's name (defaults to "User" if not provided)
+     */
     fun setUserProfile(profile: String, name: String? = null) {
         // Update local state IMMEDIATELY (synchronously)
         val pin = if (profile == "patient") {
@@ -99,7 +124,11 @@ class SettingsViewModel(
         return (AppConstants.PIN_MIN..AppConstants.PIN_MAX).random().toString()
     }
 
-    // Save caretaker PIN
+    /**
+     * Sets a security PIN to protect sensitive caregiver features.
+     * 
+     * @param pin The 6-digit PIN to set
+     */
     fun setCaretakerPin(pin: String) {
         viewModelScope.launch {
             val current = settingsFlow.first() ?: FirestoreSettings()
@@ -107,6 +136,9 @@ class SettingsViewModel(
         }
     }
 
+    /**
+     * Removes the security PIN, allowing unrestricted access to caregiver features.
+     */
     fun removeCaretakerPin() {
         viewModelScope.launch {
             val current = settingsFlow.first() ?: FirestoreSettings()
@@ -139,7 +171,11 @@ class SettingsViewModel(
         }
     }
 
-    // Update patient name
+    /**
+     * Updates the patient's display name in their profile.
+     * 
+     * @param name The new name to set
+     */
     fun updatePatientName(name: String) {
         viewModelScope.launch {
             val profile = repository.getCurrentUserProfile()
@@ -150,7 +186,17 @@ class SettingsViewModel(
         }
     }
 
-    // Generate QR data for patient
+    /**
+     * Generates JSON data for QR code that caregivers can scan to add this patient.
+     * 
+     * Includes:
+     * - Patient's PIN
+     * - Patient's name
+     * - All medications
+     * - Recent dose history (for continuity)
+     * 
+     * @return JSON string for QR code, or null if generation fails
+     */
     suspend fun generatePatientQRData(): String? {
         val pin = pairingPin.value ?: return null
         val name = patientName.value ?: "Unknown Patient"
@@ -164,7 +210,10 @@ class SettingsViewModel(
         }
     }
 
-    // Sign out
+    /**
+     * Clears the user's profile and signs them out.
+     * Updates local state immediately for instant UI response, then cleans up Firebase.
+     */
     fun clearUserProfile() {
         // Clear local state IMMEDIATELY (synchronously) for instant UI update
         _userProfile.value = null

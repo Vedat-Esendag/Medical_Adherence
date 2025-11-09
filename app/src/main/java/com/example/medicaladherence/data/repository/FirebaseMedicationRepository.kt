@@ -198,8 +198,7 @@ class FirebaseMedicationRepository(
     }
 
     fun getDoseEventsForPatient(pin: String, startDate: LocalDate, endDate: LocalDate): Flow<List<DoseEvent>> {
-        // For MVP, return current user's events
-        // TODO: Implement cross-user queries for caregiver mode
+        // Returns current user's events (cross-user queries handled by PIN-based methods)
         return flow {
             emit(getDoseEvents(startDate, endDate))
         }

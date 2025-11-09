@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.medicaladherence.ui.theme.AdherenceColors
 import com.example.medicaladherence.viewmodel.CaretakerViewModel
 import com.example.medicaladherence.viewmodel.MedicationAdherence
 import com.example.medicaladherence.viewmodel.MissedDoseInfo
@@ -23,9 +24,9 @@ import java.time.format.DateTimeFormatter
 
 // Utility function for subtle background tints based on adherence
 fun getAdherenceTint(percentage: Int): Color = when {
-    percentage >= 70 -> Color(0xFFE8F5E9)  // Light green
-    percentage >= 30 -> Color(0xFFFFF9C4)  // Light yellow
-    else -> Color(0xFFFFEBEE)              // Light red
+    percentage >= 70 -> AdherenceColors.ExcellentBg
+    percentage >= 30 -> AdherenceColors.GoodBg
+    else -> AdherenceColors.WarningBg
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +94,7 @@ fun CaretakerScreen(
                         Icon(Icons.Default.Refresh, "Refresh data")
                     }
                     IconButton(
-                        onClick = { /* TODO: Implement notification to patient */ }
+                        onClick = { /* Notification feature - future enhancement */ }
                     ) {
                         Icon(Icons.Default.Notifications, "Notify patient")
                     }
@@ -151,7 +152,7 @@ fun CaretakerScreen(
                 }
 
                 // 3. Needs Attention Section (Compact)
-                val problematicMeds = uiState.medicationBreakdown.filter { it.percentage < 70 }
+                val problematicMeds = uiState.medicationBreakdown.filter { it.percentage < com.example.medicaladherence.utils.AppConstants.ADHERENCE_PROBLEMATIC }
             
                 if (problematicMeds.isNotEmpty()) {
                     item {
@@ -271,15 +272,15 @@ fun CompactAttentionCard(
     
     // Get color based on severity
     val severityColor = when {
-        percentage >= 70 -> Color(0xFF2E7D32)  // Green (shouldn't happen in this section)
-        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
-        else -> Color(0xFFD32F2F)              // Red
+        percentage >= 70 -> AdherenceColors.ExcellentText
+        percentage >= 30 -> AdherenceColors.GoodText
+        else -> AdherenceColors.WarningText
     }
     
     val backgroundColor = when {
-        percentage >= 70 -> Color(0xFFE8F5E9)
-        percentage >= 30 -> Color(0xFFFFF9C4)
-        else -> Color(0xFFFFEBEE)
+        percentage >= 70 -> AdherenceColors.ExcellentBg
+        percentage >= 30 -> AdherenceColors.GoodBg
+        else -> AdherenceColors.WarningBg
     }
     
     Card(
@@ -425,9 +426,9 @@ fun SeverityMedicationCard(
     
     // Get color for percentage text
     val percentageColor = when {
-        percentage >= 70 -> Color(0xFF2E7D32)  // Green
-        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
-        else -> Color(0xFFD32F2F)              // Red
+        percentage >= 70 -> AdherenceColors.ExcellentText
+        percentage >= 30 -> AdherenceColors.GoodText
+        else -> AdherenceColors.WarningText
     }
 
     ElevatedCard(
@@ -598,7 +599,7 @@ fun MissedDoseItem(dose: MissedDoseInfo) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = Color(0xFFFFEBEE) // Light red tint
+            containerColor = AdherenceColors.WarningBg
         )
     ) {
         Row(
@@ -692,9 +693,9 @@ fun CompactMedicationCard(medication: MedicationAdherence) {
     
     // Get color for percentage text
     val percentageColor = when {
-        percentage >= 70 -> Color(0xFF2E7D32)  // Green
-        percentage >= 30 -> Color(0xFFEF6C00)  // Orange
-        else -> Color(0xFFD32F2F)              // Red
+        percentage >= 70 -> AdherenceColors.ExcellentText
+        percentage >= 30 -> AdherenceColors.GoodText
+        else -> AdherenceColors.WarningText
     }
 
     ElevatedCard(
