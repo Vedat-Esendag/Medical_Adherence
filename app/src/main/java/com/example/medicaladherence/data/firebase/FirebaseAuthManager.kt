@@ -81,7 +81,6 @@ class FirebaseAuthManager(private val context: Context? = null) {
             // Each device/emulator gets a unique ID based on its Android ID
             if (cachedOfflineUserId == null) {
                 cachedOfflineUserId = generateDeviceSpecificOfflineId()
-                android.util.Log.w("FirebaseAuth", "Using offline mode with device-specific ID: $cachedOfflineUserId")
             }
             cachedOfflineUserId!!
         }

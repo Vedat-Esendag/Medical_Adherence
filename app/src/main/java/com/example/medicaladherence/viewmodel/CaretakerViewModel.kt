@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -53,14 +54,14 @@ class CaretakerViewModel(
         repository.getMedicationsForPatientByPin(patientPin)
             .stateIn(
                 scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
+                started = SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS),
                 initialValue = emptyList()
             )
     } else {
         repository.medications
             .stateIn(
                 scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
+                started = SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS),
                 initialValue = emptyList()
             )
     }
@@ -80,12 +81,10 @@ class CaretakerViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-                
-                android.util.Log.d("CaretakerVM", "Loading data for patient PIN: ${patientPin ?: "current user"}")
 
                 val today = LocalDate.now()
-                val weekAgo = today.minusDays(6)
-                val monthAgo = today.minusDays(29)
+                val weekAgo = today.minusDays((AppConstants.DAYS_IN_WEEK - 1).toLong())
+                val monthAgo = today.minusDays((AppConstants.DAYS_IN_MONTH - 1).toLong())
 
                 // If monitoring a specific patient
                 if (patientPin != null) {
@@ -144,13 +143,11 @@ class CaretakerViewModel(
                         )
                     }.sortedBy { it.percentage }
 
-                    // Problematic medications (< 70% adherence)
-                    val problematicMeds = medicationBreakdown.filter { it.percentage < 70 }
+                    // Problematic medications (< threshold adherence)
+                    val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
 
                     // Adherence trend
                     val trend = calculateTrendForPatient(patientPin, weekAgo, today)
-
-                    android.util.Log.d("CaretakerVM", "✅ Loaded patient data: $patientName, ${medications.size} meds, $weeklyAdherence% weekly adherence")
 
                     _uiState.value = CaretakerUiState(
                         patientName = patientName,
@@ -174,7 +171,7 @@ class CaretakerViewModel(
                     val monthlyAdherence = repository.calculateMonthlyAdherence()
                     val currentStreak = repository.calculateStreak()
                     val longestStreak = repository.calculateLongestStreak()
-                    val missedDoses = repository.getRecentMissedDoses(7)
+                    val missedDoses = repository.getRecentMissedDoses(AppConstants.DAYS_IN_WEEK)
                     val medications = repository.medications.first()
 
                     // Get today's doses
@@ -196,8 +193,8 @@ class CaretakerViewModel(
                         )
                     }.sortedBy { it.percentage }
 
-                    // Problematic medications (< 70% adherence)
-                    val problematicMeds = medicationBreakdown.filter { it.percentage < 70 }
+                    // Problematic medications (< threshold adherence)
+                    val problematicMeds = medicationBreakdown.filter { it.percentage < AppConstants.ADHERENCE_PROBLEMATIC }
 
                     val trend = calculateTrend(repository)
 
@@ -312,7 +309,7 @@ class CaretakerViewModel(
             
             val percentage = if (expected > 0) (taken * 100) / expected else 0
             
-            if (percentage < 70) {
+            if (percentage < AppConstants.ADHERENCE_PROBLEMATIC) {
                 MedicationAdherence(
                     medicationName = med.name,
                     dosage = med.dosage,
@@ -330,7 +327,7 @@ class CaretakerViewModel(
         val thisWeekAdherence = repository.calculatePatientAdherence(pin, currentWeekStart, currentWeekEnd)
         
         val lastWeekEnd = currentWeekStart.minusDays(1)
-        val lastWeekStart = lastWeekEnd.minusDays(6)
+        val lastWeekStart = lastWeekEnd.minusDays((AppConstants.DAYS_IN_WEEK - 1).toLong())
         val lastWeekAdherence = repository.calculatePatientAdherence(pin, lastWeekStart, lastWeekEnd)
 
         return when {
@@ -344,8 +341,8 @@ class CaretakerViewModel(
         val today = LocalDate.now()
         val thisWeekAdherence = repository.calculateWeeklyAdherence()
 
-        val twoWeeksAgo = today.minusDays(13)
-        val oneWeekAgo = today.minusDays(7)
+        val twoWeeksAgo = today.minusDays((AppConstants.DAYS_IN_WEEK * 2 - 1).toLong())
+        val oneWeekAgo = today.minusDays(AppConstants.DAYS_IN_WEEK.toLong())
 
         val lastWeekAdherence = repository.calculateAdherenceForPeriod(twoWeeksAgo, oneWeekAgo)
 

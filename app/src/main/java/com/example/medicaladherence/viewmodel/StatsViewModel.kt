@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,17 +64,17 @@ class StatsViewModel(
                 }
 
             val feedback = when {
-                weeklyPercentage >= 90 -> "Excellent work! You're staying on track with your medications."
-                weeklyPercentage >= 75 -> "Good job! Keep up the consistency."
-                weeklyPercentage >= 50 -> "You're doing okay. Try to improve your consistency."
+                weeklyPercentage >= AppConstants.ADHERENCE_EXCELLENT -> "Excellent work! You're staying on track with your medications."
+                weeklyPercentage >= AppConstants.ADHERENCE_FAIR -> "Good job! Keep up the consistency."
+                weeklyPercentage >= AppConstants.ADHERENCE_OKAY -> "You're doing okay. Try to improve your consistency."
                 else -> "Let's work on building a better routine together."
             }
 
-            // Calculate streak: consecutive days with >= 80% adherence from today backwards
+            // Calculate streak: consecutive days with >= good adherence from today backwards
             val sortedDays = dailyAdherence.entries.sortedByDescending { it.key }
             var streak = 0
             for ((_, percentage) in sortedDays) {
-                if (percentage >= 80) {
+                if (percentage >= AppConstants.ADHERENCE_GOOD) {
                     streak++
                 } else {
                     break
@@ -107,7 +108,7 @@ class StatsViewModel(
             val medicationBreakdown = mutableListOf<MedicationAdherence>()
 
             val today = LocalDate.now()
-            val weekAgo = today.minusDays(6)
+            val weekAgo = today.minusDays((AppConstants.DAYS_IN_WEEK - 1).toLong())
 
             medications.forEach { med ->
                 val adherence = repository.calculateMedicationAdherence(

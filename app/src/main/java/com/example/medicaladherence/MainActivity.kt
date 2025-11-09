@@ -102,9 +102,8 @@ fun PatientMainScreen(
     // Request notification permission (Android 13+) and schedule notifications
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        // Schedule notifications regardless of permission (will work in offline mode)
-        Log.d("PatientMainScreen", "Notification permission: $isGranted")
+    ) { _: Boolean ->
+        // Notification permission handled
     }
 
     LaunchedEffect(Unit) {
@@ -123,7 +122,6 @@ fun PatientMainScreen(
         try {
             val scheduler = NotificationScheduler(context)
             scheduler.rescheduleAllFromFirebase()
-            Log.d("PatientMainScreen", "Notifications scheduled")
         } catch (e: Exception) {
             Log.e("PatientMainScreen", "Error scheduling notifications", e)
         }
@@ -389,7 +387,6 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
         
         composable("patient_monitor/{pin}") { backStackEntry ->
             val pin = backStackEntry.arguments?.getString("pin") ?: ""
-            android.util.Log.d("MainActivity", "📱 Navigating to patient monitor with PIN: $pin")
             // Reuse CaretakerScreen for monitoring specific patient
             CaretakerScreen(
                 viewModel = androidx.lifecycle.viewmodel.compose.viewModel(

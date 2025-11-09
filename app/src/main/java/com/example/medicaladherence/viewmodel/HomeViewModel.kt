@@ -7,6 +7,7 @@ import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.notification.NotificationScheduler
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -106,9 +107,9 @@ class HomeViewModel(
                 String.format("%02d:%02d", 0, minutes)
             }
 
-            // Check if within 30-minute window
+            // Check if within dose window
             val totalMinutes = duration.toMinutes()
-            val isInWindow = totalMinutes <= 30 && totalMinutes >= -30
+            val isInWindow = totalMinutes <= AppConstants.DOSE_WINDOW_MINUTES && totalMinutes >= -AppConstants.DOSE_WINDOW_MINUTES
 
             _uiState.value = _uiState.value.copy(
                 nextDoseCountdown = countdown,
@@ -150,8 +151,8 @@ class HomeViewModel(
     }
 
     fun snooze15(medId: String, time: String) {
-        repository.snooze(medId, time, 15)
-        showSnackbar("Snoozed for 15 minutes")
+        repository.snooze(medId, time, AppConstants.SNOOZE_DURATION_MINUTES)
+        showSnackbar("Snoozed for ${AppConstants.SNOOZE_DURATION_MINUTES} minutes")
     }
 
     fun undoDose(medId: String, time: String) {

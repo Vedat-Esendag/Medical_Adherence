@@ -1,6 +1,7 @@
 package com.example.medicaladherence.util
 
 import com.example.medicaladherence.data.model.PatientDataExport
+import com.example.medicaladherence.utils.AppConstants
 
 object QRCodeScanner {
     
@@ -29,8 +30,8 @@ object QRCodeScanner {
      * Validate patient data from QR code
      */
     private fun isValidPatientData(data: PatientDataExport): Boolean {
-        // Check PIN format (6 digits)
-        if (data.pin.length != 6 || !data.pin.all { it.isDigit() }) {
+        // Check PIN format
+        if (data.pin.length != AppConstants.PIN_LENGTH || !data.pin.all { it.isDigit() }) {
             return false
         }
         

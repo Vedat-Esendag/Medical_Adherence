@@ -2,6 +2,7 @@ package com.example.medicaladherence.data.repository
 
 import com.example.medicaladherence.data.firebase.*
 import com.example.medicaladherence.data.model.*
+import com.example.medicaladherence.utils.AppConstants
 import com.example.medicaladherence.viewmodel.MedicationAdherence
 import com.example.medicaladherence.viewmodel.MissedDoseInfo
 import com.google.firebase.firestore.FirebaseFirestore
@@ -53,17 +54,13 @@ class FirebaseMedicationRepository(
     suspend fun setUserProfile(role: String, name: String, pin: String) {
         try {
             val userId = getCurrentUserId()
-            android.util.Log.d("FirebaseRepo", "👤 Setting profile for user: $userId, role: $role, PIN: $pin")
-            
             val profile = FirestoreUserProfile(
                 userId = userId,
                 role = role,
                 name = name,
                 pin = pin
             )
-            
             getCurrentUserDoc().set(profile).await()
-            android.util.Log.d("FirebaseRepo", "✅ Profile saved successfully - User: $userId, Role: $role, Name: $name, PIN: $pin")
         } catch (e: Exception) {
             android.util.Log.e("FirebaseRepo", "❌ Error saving profile", e)
             throw e
@@ -78,7 +75,6 @@ class FirebaseMedicationRepository(
     suspend fun deleteUserProfile() {
         try {
             getCurrentUserDoc().delete().await()
-            android.util.Log.d("FirebaseRepo", "User profile deleted")
         } catch (e: Exception) {
             android.util.Log.e("FirebaseRepo", "Error deleting profile", e)
             throw e
@@ -89,12 +85,9 @@ class FirebaseMedicationRepository(
 
     val medications: Flow<List<Medication>> = flow {
         val userId = getCurrentUserId()
-        android.util.Log.d("FirebaseRepo", "Loading medications for user: $userId")
-        
         firestore.collection("users/$userId/medications")
             .asFlow { doc -> doc.toObject(FirestoreMedication::class.java)?.toMedication() }
             .collect { medications ->
-                android.util.Log.d("FirebaseRepo", "Loaded ${medications.size} medications")
                 emit(medications)
             }
     }.catch { e ->
@@ -125,17 +118,12 @@ class FirebaseMedicationRepository(
 
     suspend fun addOrUpdateMedication(medication: Medication) {
         try {
-            val userId = getCurrentUserId()
-            android.util.Log.d("FirebaseRepo", "Adding/updating medication for user: $userId, med: ${medication.name}")
-            
             val firestoreMed = FirestoreMedication.fromMedication(medication)
             getCurrentUserDoc()
                 .collection("medications")
                 .document(medication.id)
                 .set(firestoreMed)
                 .await()
-                
-            android.util.Log.d("FirebaseRepo", "Medication saved successfully: ${medication.name}")
         } catch (e: Exception) {
             android.util.Log.e("FirebaseRepo", "Error saving medication: ${medication.name}", e)
             throw e
@@ -251,7 +239,7 @@ class FirebaseMedicationRepository(
 
     suspend fun calculateWeeklyAdherence(): Int {
         val today = LocalDate.now()
-        val weekAgo = today.minusDays(6)
+        val weekAgo = today.minusDays((AppConstants.DAYS_IN_WEEK - 1).toLong())
         val events = getDoseEvents(weekAgo, today)
 
         if (events.isEmpty()) return 0
@@ -262,7 +250,7 @@ class FirebaseMedicationRepository(
 
     suspend fun calculateMonthlyAdherence(): Int {
         val today = LocalDate.now()
-        val monthAgo = today.minusDays(29)
+        val monthAgo = today.minusDays((AppConstants.DAYS_IN_MONTH - 1).toLong())
         return calculateAdherenceForPeriod(monthAgo, today)
     }
 
@@ -299,7 +287,7 @@ class FirebaseMedicationRepository(
         val today = LocalDate.now()
         var longestStreak = 0
         var currentStreak = 0
-        var checkDate = today.minusDays(90)
+        var checkDate = today.minusDays(AppConstants.STREAK_LOOKBACK_DAYS.toLong())
 
         while (checkDate.isBefore(today) || checkDate.isEqual(today)) {
             val dayEvents = getDoseEvents(checkDate, checkDate)
@@ -328,7 +316,7 @@ class FirebaseMedicationRepository(
         val today = LocalDate.now()
         val result = mutableMapOf<LocalDate, Int>()
 
-        for (dayOffset in 6 downTo 0) {
+        for (dayOffset in (AppConstants.DAYS_IN_WEEK - 1) downTo 0) {
             val date = today.minusDays(dayOffset.toLong())
             val dayEvents = getDoseEvents(date, date)
 
@@ -396,7 +384,7 @@ class FirebaseMedicationRepository(
                 "You're better at taking morning doses (${morningAdherence}%) than evening doses (${eveningAdherence}%). Set an evening reminder!"
             eveningAdherence > morningAdherence + 20 ->
                 "You're better at taking evening doses (${eveningAdherence}%) than morning doses (${morningAdherence}%). Set a morning reminder!"
-            morningAdherence >= 80 && eveningAdherence >= 80 ->
+            morningAdherence >= AppConstants.ADHERENCE_GOOD && eveningAdherence >= AppConstants.ADHERENCE_GOOD ->
                 "Excellent! You're consistent with both morning (${morningAdherence}%) and evening (${eveningAdherence}%) doses."
             else -> null
         }
@@ -465,7 +453,7 @@ class FirebaseMedicationRepository(
         val medications = medications.first()
 
         val endDate = LocalDate.now()
-        val startDate = endDate.minusDays(30)
+        val startDate = endDate.minusDays(AppConstants.DAYS_IN_MONTH.toLong())
         val doseEvents = getDoseEvents(startDate, endDate)
 
         // Convert to export format
@@ -501,8 +489,6 @@ class FirebaseMedicationRepository(
 
     suspend fun getPatientDataByPin(pin: String): PatientDataExport? {
         try {
-            android.util.Log.d("FirebaseRepo", "⚙️ Searching for patient with PIN: $pin")
-            
             // Query users by PIN
             val users = firestore.collection("users")
                 .whereEqualTo("pin", pin)
@@ -510,17 +496,12 @@ class FirebaseMedicationRepository(
                 .get()
                 .await()
 
-            android.util.Log.d("FirebaseRepo", "📊 Query returned ${users.documents.size} user(s)")
-            
             if (users.isEmpty) {
-                android.util.Log.w("FirebaseRepo", "❌ No patient found with PIN: $pin")
                 return null
             }
 
             val patientUserId = users.documents.first().id
             val patientName = users.documents.first().getString("name") ?: "Unknown"
-            
-            android.util.Log.d("FirebaseRepo", "✅ Found patient: $patientName (ID: $patientUserId)")
 
             // Get patient's medications
             val medications = firestore.collection("users/$patientUserId/medications")
@@ -529,11 +510,9 @@ class FirebaseMedicationRepository(
                 .documents
                 .mapNotNull { it.toObject(FirestoreMedication::class.java) }
 
-            android.util.Log.d("FirebaseRepo", "💊 Found ${medications.size} medication(s)")
-
-            // Get patient's dose events (last 30 days)
+            // Get patient's dose events (last month)
             val endDate = LocalDate.now()
-            val startDate = endDate.minusDays(30)
+            val startDate = endDate.minusDays(AppConstants.DAYS_IN_MONTH.toLong())
             val doseEvents = firestore.collection("users/$patientUserId/doseEvents")
                 .whereGreaterThanOrEqualTo("date", startDate.toString())
                 .whereLessThanOrEqualTo("date", endDate.toString())
@@ -541,8 +520,6 @@ class FirebaseMedicationRepository(
                 .await()
                 .documents
                 .mapNotNull { it.toObject(FirestoreDoseEvent::class.java) }
-
-            android.util.Log.d("FirebaseRepo", "📅 Found ${doseEvents.size} dose event(s)")
 
             val medExports = medications.map { med ->
                 MedicationExport(
@@ -566,8 +543,6 @@ class FirebaseMedicationRepository(
                 )
             }
 
-            android.util.Log.d("FirebaseRepo", "✅ Successfully created PatientDataExport for $patientName")
-            
             return PatientDataExport(
                 pin = pin,
                 name = patientName,
@@ -613,8 +588,6 @@ class FirebaseMedicationRepository(
      */
     fun getCaregiverPatients(): Flow<List<PatientProfile>> = callbackFlow {
         val caregiverUserId = getCurrentUserId()
-        android.util.Log.d("FirebaseRepo", "🔄 Setting up real-time listener for caregiver: $caregiverUserId")
-
         val listener = firestore.collection("caregiver_links")
             .whereEqualTo("caregiverUserId", caregiverUserId)
             .addSnapshotListener { snapshot, error ->
@@ -625,12 +598,9 @@ class FirebaseMedicationRepository(
                 }
 
                 if (snapshot == null) {
-                    android.util.Log.w("FirebaseRepo", "⚠️ Snapshot is null")
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
-
-                android.util.Log.d("FirebaseRepo", "📊 Caregiver links snapshot received: ${snapshot.documents.size} links")
 
                 val links = snapshot.documents.mapNotNull { 
                     it.toObject(FirestoreCaregiverLink::class.java) 
@@ -650,15 +620,12 @@ class FirebaseMedicationRepository(
                                 ?.id
 
                             if (patientUserId != null) {
-                                val count = firestore.collection("users/$patientUserId/medications")
+                                firestore.collection("users/$patientUserId/medications")
                                     .get()
                                     .await()
                                     .documents
                                     .size
-                                android.util.Log.d("FirebaseRepo", "💊 Patient ${link.patientName} has $count medication(s)")
-                                count
                             } else {
-                                android.util.Log.w("FirebaseRepo", "⚠️ Could not find patient userId for PIN: ${link.patientPin}")
                                 0
                             }
                         } catch (e: Exception) {
@@ -677,14 +644,11 @@ class FirebaseMedicationRepository(
                             notes = link.notes
                         )
                     }
-
-                    android.util.Log.d("FirebaseRepo", "✅ Emitting ${patients.size} patient(s) with medication counts")
                     trySend(patients)
                 }
             }
 
         awaitClose {
-            android.util.Log.d("FirebaseRepo", "🔌 Removing caregiver patients listener")
             listener.remove()
         }
     }.catch { e ->
@@ -718,13 +682,10 @@ class FirebaseMedicationRepository(
         val patientUserId = getPatientUserIdByPin(pin)
         
         if (patientUserId == null) {
-            android.util.Log.w("FirebaseRepo", "⚠️ Could not find patient with PIN: $pin")
             trySend(emptyList())
             close()
             return@callbackFlow
         }
-
-        android.util.Log.d("FirebaseRepo", "🔄 Setting up medication listener for patient: $patientUserId")
 
         val listener = firestore.collection("users/$patientUserId/medications")
             .addSnapshotListener { snapshot, error ->
@@ -742,13 +703,10 @@ class FirebaseMedicationRepository(
                 val medications = snapshot.documents.mapNotNull { 
                     it.toObject(FirestoreMedication::class.java)?.toMedication()
                 }
-                
-                android.util.Log.d("FirebaseRepo", "💊 Patient medications updated: ${medications.size} med(s)")
                 trySend(medications)
             }
 
         awaitClose {
-            android.util.Log.d("FirebaseRepo", "🔌 Removing patient medications listener")
             listener.remove()
         }
     }.catch { e ->

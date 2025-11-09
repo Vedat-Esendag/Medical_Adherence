@@ -2,6 +2,7 @@ package com.example.medicaladherence.util
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import com.example.medicaladherence.utils.AppConstants
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -15,7 +16,7 @@ object QRCodeGenerator {
      * @param size The size of the QR code in pixels (width and height)
      * @return Bitmap of the QR code or null if generation fails
      */
-    fun generateQRCode(data: String, size: Int = 512): Bitmap? {
+    fun generateQRCode(data: String, size: Int = AppConstants.QR_CODE_SIZE): Bitmap? {
         return try {
             val hints = hashMapOf<EncodeHintType, Any>().apply {
                 put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H)
@@ -43,7 +44,7 @@ object QRCodeGenerator {
             
             bitmap
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("QRCodeGenerator", "Failed to generate QR code: ${e.message}", e)
             null
         }
     }
@@ -53,7 +54,7 @@ object QRCodeGenerator {
      * QR codes have a maximum capacity of ~4,296 alphanumeric characters
      */
     fun isDataTooLarge(data: String): Boolean {
-        return data.length > 4000 // Safe limit with error correction
+        return data.length > AppConstants.QR_CODE_MAX_LENGTH
     }
 }
 

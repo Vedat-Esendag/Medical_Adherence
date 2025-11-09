@@ -25,11 +25,6 @@ object RepositoryProvider {
             // Initialize Firestore (offline persistence is enabled by default in newer versions)
             val firestore = FirebaseFirestore.getInstance()
 
-            // Log network connectivity for debugging multi-emulator setup
-            firestore.addSnapshotsInSyncListener {
-                android.util.Log.d("FirebaseRepo", "Firestore synced with backend")
-            }
-
             val newRepo = FirebaseMedicationRepository(firestore, auth)
             repository = newRepo
             newRepo

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.firebase.FirestoreSettings
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -51,29 +52,26 @@ class SettingsViewModel(
                     _userProfile.value = profile.role
                     _pairingPin.value = profile.pin
                     _patientName.value = profile.name
-                    android.util.Log.d("SettingsViewModel", "✅ Loaded valid profile: ${profile.role}, name: ${profile.name}")
                 } else {
                     _userProfile.value = null
                     _pairingPin.value = null
                     _patientName.value = null
-                    android.util.Log.d("SettingsViewModel", "❌ Invalid profile (role: ${profile?.role}, name: ${profile?.name}) - showing selection screen")
                 }
             } catch (e: Exception) {
                 _userProfile.value = null
                 _pairingPin.value = null
                 _patientName.value = null
-                android.util.Log.d("SettingsViewModel", "⚠️ Profile load error - showing selection screen: ${e.message}")
             }
         }
     }
 
     val caretakerPin: StateFlow<String?> = settingsFlow
         .map { it?.caretakerPin }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS), null)
 
     val highContrastMode: StateFlow<Boolean> = settingsFlow
         .map { it?.highContrastMode ?: false }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS), false)
 
     // Save user profile (patient or caregiver)
     fun setUserProfile(profile: String, name: String? = null) {
@@ -86,14 +84,10 @@ class SettingsViewModel(
         _pairingPin.value = pin
         _patientName.value = name ?: "User"
         
-        android.util.Log.d("SettingsViewModel", "Profile state updated: $profile")
-        
         // Then save to Firebase asynchronously
         viewModelScope.launch {
             try {
-                android.util.Log.d("SettingsViewModel", "Saving profile to Firebase: $profile, name: $name")
                 repository.setUserProfile(profile, name ?: "User", pin)
-                android.util.Log.d("SettingsViewModel", "Profile saved to Firebase successfully")
             } catch (e: Exception) {
                 android.util.Log.e("SettingsViewModel", "Error saving profile to Firebase (will retry later)", e)
                 // Local state already updated, so UI will work
@@ -102,7 +96,7 @@ class SettingsViewModel(
     }
 
     private fun generatePairingPin(): String {
-        return (100000..999999).random().toString()
+        return (AppConstants.PIN_MIN..AppConstants.PIN_MAX).random().toString()
     }
 
     // Save caretaker PIN
@@ -165,7 +159,7 @@ class SettingsViewModel(
             val patientData = repository.exportPatientData(pin, name)
             patientData.toJson()
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("SettingsViewModel", "Failed to generate QR data: ${e.message}", e)
             null
         }
     }
@@ -177,14 +171,11 @@ class SettingsViewModel(
         _pairingPin.value = null
         _patientName.value = null
 
-        android.util.Log.d("SettingsViewModel", "Profile state cleared locally")
-
         // Then clean up Firebase asynchronously
         viewModelScope.launch {
             try {
                 // Delete user profile from Firebase
                 repository.deleteUserProfile()
-                android.util.Log.d("SettingsViewModel", "Profile deleted from Firebase")
             } catch (e: Exception) {
                 android.util.Log.e("SettingsViewModel", "Error deleting profile from Firebase (already cleared locally)", e)
             }
@@ -192,7 +183,6 @@ class SettingsViewModel(
             try {
                 // Sign out from Firebase Auth
                 RepositoryProvider.getAuthManager().signOut()
-                android.util.Log.d("SettingsViewModel", "Signed out from Firebase Auth")
             } catch (e: Exception) {
                 android.util.Log.e("SettingsViewModel", "Error signing out from Firebase Auth", e)
             }

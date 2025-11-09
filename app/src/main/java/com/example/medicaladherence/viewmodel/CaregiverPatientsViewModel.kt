@@ -7,6 +7,7 @@ import com.example.medicaladherence.data.model.PatientProfile
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.util.QRCodeScanner
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -17,7 +18,7 @@ class CaregiverPatientsViewModel(
     val patients: StateFlow<List<PatientProfile>> = repository.getCaregiverPatients()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS),
             initialValue = emptyList()
         )
     
@@ -65,36 +66,28 @@ class CaregiverPatientsViewModel(
             _importStatus.value = ImportStatus.Loading
             
             try {
-                android.util.Log.d("CaregiverPatientsVM", "🔍 Attempting to import patient with PIN: $pin")
-                
                 // Validate PIN format
-                if (pin.length != 6 || !pin.all { it.isDigit() }) {
-                    android.util.Log.w("CaregiverPatientsVM", "❌ Invalid PIN format: $pin")
-                    _importStatus.value = ImportStatus.Error("PIN must be 6 digits")
+                if (pin.length != AppConstants.PIN_LENGTH || !pin.all { it.isDigit() }) {
+                    _importStatus.value = ImportStatus.Error("PIN must be ${AppConstants.PIN_LENGTH} digits")
                     return@launch
                 }
                 
                 // Check for duplicate patient
                 val existingPatients = patients.value
                 if (existingPatients.any { it.pin == pin }) {
-                    android.util.Log.w("CaregiverPatientsVM", "⚠️ Patient with PIN $pin already in list")
                     _importStatus.value = ImportStatus.Error("This patient is already in your list")
                     return@launch
                 }
                 
                 // Try to find patient data in local database (for testing/same device)
-                android.util.Log.d("CaregiverPatientsVM", "📡 Querying Firebase for patient with PIN: $pin")
                 val patientData = repository.getPatientDataByPin(pin)
                 
                 if (patientData != null) {
-                    android.util.Log.d("CaregiverPatientsVM", "✅ Found patient: ${patientData.name}, importing data...")
                     // Import the data
                     repository.importPatientData(patientData)
                     _importStatus.value = ImportStatus.Success(patientData.name)
-                    android.util.Log.d("CaregiverPatientsVM", "🎉 Successfully imported patient: ${patientData.name}")
                 } else {
                     // PIN not found on this device
-                    android.util.Log.w("CaregiverPatientsVM", "❌ Patient with PIN $pin not found in Firebase")
                     _importStatus.value = ImportStatus.Error(
                         "Patient not found. Make sure:\n" +
                         "• The PIN is correct ($pin)\n" +
@@ -125,7 +118,8 @@ class CaregiverPatientsViewModel(
             try {
                 repository.removePatientFromCaregiver(patient.pin)
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("CaregiverPatientsVM", "Failed to remove patient: ${e.message}", e)
+                _importStatus.value = ImportStatus.Error("Failed to remove patient. Please try again.")
             }
         }
     }

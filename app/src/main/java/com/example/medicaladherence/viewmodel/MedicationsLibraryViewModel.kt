@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
+import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -17,7 +18,7 @@ class MedicationsLibraryViewModel(
     val medications: StateFlow<List<Medication>> = repository.medications
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.WhileSubscribed(AppConstants.STATEFLOW_TIMEOUT_MS),
             initialValue = emptyList()
         )
 

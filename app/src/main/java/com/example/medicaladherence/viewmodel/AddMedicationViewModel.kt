@@ -138,11 +138,7 @@ class AddMedicationViewModel(
         validate()
         val state = _uiState.value
 
-        // Debug logging
-        println("DEBUG Save - Name: '${state.name}', Dosage: '${state.dosage}', Times: ${state.times.size}, Valid: ${state.isValid}")
-
         if (!state.isValid) {
-            println("DEBUG Save - Validation failed: nameError=${state.nameError}, dosageError=${state.dosageError}, timesError=${state.timesError}")
             return false
         }
 
@@ -158,7 +154,6 @@ class AddMedicationViewModel(
 
         viewModelScope.launch {
             repository.addOrUpdateMedication(medication)
-            println("DEBUG Save - Medication saved: ${medication.id}")
 
             // Schedule notifications
             if (::notificationScheduler.isInitialized) {
