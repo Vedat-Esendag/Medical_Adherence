@@ -5,8 +5,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.utils.AppConstants
+import com.example.medicaladherence.utils.AppConstants.USE_CLOUD_FUNCTIONS
+import com.example.medicaladherence.utils.FCMHelper
+import com.example.medicaladherence.utils.LocalFCMHelper
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 
 data class CaretakerUiState(
@@ -65,6 +71,12 @@ class CaretakerViewModel(
 
     private val _uiState = MutableStateFlow(CaretakerUiState())
     val uiState: StateFlow<CaretakerUiState> = _uiState.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     // Real-time medications flow
     val medications: StateFlow<List<com.example.medicaladherence.data.model.Medication>> = if (patientPin != null) {
@@ -420,6 +432,159 @@ class CaretakerViewModel(
      */
     fun refresh() {
         loadCaretakerData()
+    }
+
+    /**
+     * Send notification to patient
+     * Supports three approaches based on configuration toggles
+     */
+    fun sendNotificationToPatient(patientPin: String) {
+        viewModelScope.launch {
+            when {
+                AppConstants.USE_LOCAL_SERVER -> sendViaLocalServer(patientPin)
+                USE_CLOUD_FUNCTIONS -> sendViaCloudFunction(patientPin)
+                else -> sendViaDirectAPI(patientPin)
+            }
+        }
+    }
+
+    /**
+     * APPROACH 1: Local Express Server
+     * Sends notification via local server using Firebase Admin SDK
+     * Requires: Local server running on http://localhost:3000
+     * Best for: Development and testing
+     */
+    private suspend fun sendViaLocalServer(patientPin: String) {
+        try {
+            // Get patient's FCM token
+            val usersSnapshot = FirebaseFirestore.getInstance()
+                .collection("users")
+                .whereEqualTo("pin", patientPin)
+                .whereEqualTo("role", AppConstants.ROLE_PATIENT)
+                .limit(1)
+                .get()
+                .await()
+
+            if (usersSnapshot.isEmpty) {
+                _errorMessage.value = "Patient not found"
+                android.util.Log.e("CaretakerVM", "No patient found with PIN: $patientPin")
+                return
+            }
+
+            val patientDoc = usersSnapshot.documents[0]
+            val fcmToken = patientDoc.getString("fcmToken")
+
+            if (fcmToken.isNullOrEmpty()) {
+                _errorMessage.value = "Patient hasn't enabled notifications"
+                android.util.Log.e("CaretakerVM", "Patient has no FCM token")
+                return
+            }
+
+            // Send via local server
+            val success = LocalFCMHelper.sendNotification(
+                fcmToken = fcmToken,
+                title = "Medication Reminder",
+                body = "Your caregiver wants you to check your medications"
+            )
+
+            if (success) {
+                _message.value = "Notification sent!"
+                android.util.Log.d("CaretakerVM", "✅ Notification sent via local server")
+            } else {
+                _errorMessage.value = "Failed to send notification"
+                android.util.Log.e("CaretakerVM", "❌ Local server call failed")
+            }
+
+        } catch (e: Exception) {
+            android.util.Log.e("CaretakerVM", "Error using local server approach", e)
+            _errorMessage.value = "Error: ${e.message}"
+        }
+    }
+
+    /**
+     * APPROACH 2: Cloud Functions
+     * Writes to Firestore, Cloud Function sends notification
+     * Requires: Blaze plan, deployed Cloud Function
+     * More secure: No API keys in app
+     */
+    private suspend fun sendViaCloudFunction(patientPin: String) {
+        try {
+            val notificationRequest = hashMapOf(
+                "patientPin" to patientPin,
+                "title" to "Medication Reminder",
+                "body" to "Your caregiver wants you to check your medications",
+                "timestamp" to Timestamp.now(),
+                "sent" to false
+            )
+
+            FirebaseFirestore.getInstance()
+                .collection("notificationRequests")
+                .add(notificationRequest)
+                .addOnSuccessListener {
+                    android.util.Log.d("CaretakerVM", "Notification request created (Cloud Function will process)")
+                    _message.value = "Notification sent!"
+                }
+                .addOnFailureListener { e ->
+                    android.util.Log.e("CaretakerVM", "Failed to create notification request", e)
+                    _errorMessage.value = "Failed to send notification"
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("CaretakerVM", "Error using Cloud Functions approach", e)
+            _errorMessage.value = "Error: ${e.message}"
+        }
+    }
+
+    /**
+     * APPROACH 3: Direct FCM API (DEPRECATED)
+     * Sends notification directly from app via HTTP
+     * Requires: FCM Server Key in app
+     * Note: Legacy API is being phased out by Google
+     */
+    private suspend fun sendViaDirectAPI(patientPin: String) {
+        try {
+            // Get patient's FCM token
+            val usersSnapshot = FirebaseFirestore.getInstance()
+                .collection("users")
+                .whereEqualTo("pin", patientPin)
+                .whereEqualTo("role", AppConstants.ROLE_PATIENT)  // Fixed: use lowercase "patient"
+                .limit(1)
+                .get()
+                .await()
+
+            if (usersSnapshot.isEmpty) {
+                _errorMessage.value = "Patient not found"
+                android.util.Log.e("CaretakerVM", "No patient found with PIN: $patientPin")
+                return
+            }
+
+            val patientDoc = usersSnapshot.documents[0]
+            val fcmToken = patientDoc.getString("fcmToken")
+
+            if (fcmToken.isNullOrEmpty()) {
+                _errorMessage.value = "Patient hasn't enabled notifications"
+                android.util.Log.e("CaretakerVM", "Patient has no FCM token")
+                return
+            }
+
+            // Send directly via FCM HTTP API
+            val success = FCMHelper.sendNotification(
+                fcmToken = fcmToken,
+                title = "Medication Reminder",
+                body = "Your caregiver wants you to check your medications"
+            )
+
+            if (success) {
+                _message.value = "Notification sent!"
+                android.util.Log.d("CaretakerVM", "Notification sent via direct FCM API")
+            } else {
+                _errorMessage.value = "Failed to send notification"
+                android.util.Log.e("CaretakerVM", "Direct FCM API call failed")
+            }
+
+        } catch (e: Exception) {
+            android.util.Log.e("CaretakerVM", "Error using direct API approach", e)
+            _errorMessage.value = "Error: ${e.message}"
+        }
     }
 }
 

@@ -36,6 +36,7 @@ fun CaretakerScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showNotificationDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -93,11 +94,6 @@ fun CaretakerScreen(
                     ) {
                         Icon(Icons.Default.Refresh, "Refresh data")
                     }
-                    IconButton(
-                        onClick = { /* Notification feature - future enhancement */ }
-                    ) {
-                        Icon(Icons.Default.Notifications, "Notify patient")
-                    }
                 }
             )
         }
@@ -132,6 +128,29 @@ fun CaretakerScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // Notification Button (only show if we have a patient PIN)
+                if (uiState.patientPin.isNotEmpty()) {
+                    item {
+                        Button(
+                            onClick = { showNotificationDialog = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notify Patient",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Send Reminder to ${uiState.patientName}")
+                        }
+                    }
+                }
+
                 // 1. Hero Status Card
                 item {
                     HeroStatusCard(
@@ -183,6 +202,32 @@ fun CaretakerScreen(
                 }
             }
         }
+    }
+
+    // Notification confirmation dialog
+    if (showNotificationDialog) {
+        AlertDialog(
+            onDismissRequest = { showNotificationDialog = false },
+            title = { Text("Send Notification") },
+            text = {
+                Text("Send a reminder to ${uiState.patientName} to check their medications?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.sendNotificationToPatient(uiState.patientPin)
+                        showNotificationDialog = false
+                    }
+                ) {
+                    Text("Send")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNotificationDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

@@ -491,7 +491,7 @@ class FirebaseMedicationRepository(
             // Query users by PIN
             val users = firestore.collection("users")
                 .whereEqualTo("pin", pin)
-                .whereEqualTo("role", "patient")
+                .whereEqualTo("role", AppConstants.ROLE_PATIENT)
                 .get()
                 .await()
 
@@ -559,7 +559,7 @@ class FirebaseMedicationRepository(
         val caregiverUserId = getCurrentUserId()
         val patientUserId = firestore.collection("users")
             .whereEqualTo("pin", data.pin)
-            .whereEqualTo("role", "patient")
+            .whereEqualTo("role", AppConstants.ROLE_PATIENT)
             .get()
             .await()
             .documents
@@ -611,7 +611,7 @@ class FirebaseMedicationRepository(
                         val medCount = try {
                             val patientUserId = firestore.collection("users")
                                 .whereEqualTo("pin", link.patientPin)
-                                .whereEqualTo("role", "patient")
+                                .whereEqualTo("role", AppConstants.ROLE_PATIENT)
                                 .get()
                                 .await()
                                 .documents
@@ -662,7 +662,7 @@ class FirebaseMedicationRepository(
         return try {
             firestore.collection("users")
                 .whereEqualTo("pin", pin)
-                .whereEqualTo("role", "patient")
+                .whereEqualTo("role", AppConstants.ROLE_PATIENT)
                 .get()
                 .await()
                 .documents

@@ -4,6 +4,8 @@ import android.content.Context
 import android.provider.Settings
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -71,11 +73,18 @@ class FirebaseAuthManager(private val context: Context? = null) {
      */
     suspend fun ensureAuthenticated(): String {
         // Return existing user if already authenticated
-        currentUserId?.let { return it }
-        
+        currentUserId?.let {
+            // Request FCM token if authenticated
+            requestFCMToken()
+            return it
+        }
+
         // Try to sign in anonymously
         val result = signInAnonymously()
-        return result.getOrNull() ?: run {
+        return result.getOrNull()?.also {
+            // Request FCM token after successful sign-in
+            requestFCMToken()
+        } ?: run {
             // If sign-in fails (e.g., offline), use a device-specific persistent fallback ID
             // This allows the app to work offline with Firestore's cache
             // Each device/emulator gets a unique ID based on its Android ID
@@ -83,6 +92,41 @@ class FirebaseAuthManager(private val context: Context? = null) {
                 cachedOfflineUserId = generateDeviceSpecificOfflineId()
             }
             cachedOfflineUserId!!
+        }
+    }
+
+    /**
+     * Request FCM token and save it to Firestore
+     * Fixed to work with both Firebase Auth users AND offline users
+     */
+    private fun requestFCMToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                android.util.Log.d("FCM", "Token retrieved: $token")
+
+                // Save to Firestore - use currentUserId (works for both auth and offline users)
+                val userId = currentUserId  // This includes offline users!
+                if (userId != null) {
+                    android.util.Log.d("FCM", "Saving FCM token for user: $userId")
+                    FirebaseFirestore.getInstance()
+                        .collection("users")
+                        .document(userId)
+                        .update("fcmToken", token)
+                        .addOnSuccessListener {
+                            android.util.Log.d("FCM", "✅ FCM token saved to Firestore for user: $userId")
+                        }
+                        .addOnFailureListener { e ->
+                            android.util.Log.e("FCM", "❌ Failed to save FCM token to Firestore for user: $userId", e)
+                            // If update fails, the document might not exist yet - this is OK
+                            // The token will be saved when the user profile is created
+                        }
+                } else {
+                    android.util.Log.e("FCM", "❌ Cannot save FCM token - no user ID available")
+                }
+            } else {
+                android.util.Log.e("FCM", "❌ Failed to get FCM token", task.exception)
+            }
         }
     }
 
