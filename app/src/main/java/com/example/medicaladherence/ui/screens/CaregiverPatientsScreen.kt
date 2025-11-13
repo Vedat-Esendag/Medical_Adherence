@@ -26,7 +26,7 @@ import kotlin.math.abs
 @Composable
 fun CaregiverPatientsScreen(
     patients: List<PatientProfile>,
-    onScanQR: () -> Unit,
+    onScanQR: () -> Unit, // Now opens method selection dialog
     onSelectPatient: (String) -> Unit,
     onRemovePatient: (PatientProfile) -> Unit,
     onManualPinEntry: (String) -> Unit = {},
@@ -47,7 +47,7 @@ fun CaregiverPatientsScreen(
                         Icon(Icons.Default.Settings, "Settings")
                     }
                     IconButton(onClick = onScanQR) {
-                        Icon(Icons.Default.Add, "Scan QR Code")
+                        Icon(Icons.Default.Add, "Add Patient")
                     }
                 }
             )
@@ -58,7 +58,7 @@ fun CaregiverPatientsScreen(
                     onClick = onScanQR,
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
-                    Icon(Icons.Default.Add, "Scan QR Code")
+                    Icon(Icons.Default.Add, "Add Patient")
                 }
             }
         }
@@ -87,7 +87,7 @@ fun CaregiverPatientsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Scan a patient's QR code to start monitoring their medications",
+                        text = "Add a patient to start monitoring their medications",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -34,6 +34,8 @@ import com.example.medicaladherence.notification.NotificationScheduler
 import com.example.medicaladherence.ui.nav.Routes
 import com.example.medicaladherence.ui.screens.*
 import com.example.medicaladherence.ui.theme.MedicalAdherenceTheme
+import com.example.medicaladherence.ui.components.AddPatientMethodDialog
+import com.example.medicaladherence.ui.components.ManualPinEntryDialog
 import com.example.medicaladherence.viewmodel.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -281,6 +283,8 @@ fun PatientMainScreen(
 fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    var showAddPatientMethodDialog by remember { mutableStateOf(false) }
+    var showManualPinDialog by remember { mutableStateOf(false) }
     var showCameraPermissionDialog by remember { mutableStateOf(false) }
     var showCameraPermissionDeniedDialog by remember { mutableStateOf(false) }
     
@@ -343,16 +347,8 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
                     CaregiverPatientsScreen(
                         patients = patients,
                         onScanQR = {
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.CAMERA
-                            ) == PackageManager.PERMISSION_GRANTED
-                            
-                            if (hasPermission) {
-                                navController.navigate("qr_scanner")
-                            } else {
-                                showCameraPermissionDialog = true
-                            }
+                            // Show method selection dialog first
+                            showAddPatientMethodDialog = true
                         },
                         onSelectPatient = { pin ->
                             navController.navigate("patient_monitor/$pin")
@@ -400,21 +396,13 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
             val viewModel: CaregiverSettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                 factory = CaregiverSettingsViewModelFactory(repository)
             )
-            
+
             CaregiverSettingsScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onAddPatient = {
-                    val hasPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
-                    
-                    if (hasPermission) {
-                        navController.navigate("qr_scanner")
-                    } else {
-                        showCameraPermissionDialog = true
-                    }
+                    // Show method selection dialog first
+                    showAddPatientMethodDialog = true
                 }
             )
         }
@@ -451,11 +439,75 @@ fun CaregiverMainScreen(repository: FirebaseMedicationRepository) {
             title = { Text("Camera Access Denied") },
             text = { Text("Without camera access, you cannot scan QR codes. You can enable it later in Settings or manually enter the patient's PIN.") },
             confirmButton = {
+                Button(onClick = {
+                    showCameraPermissionDeniedDialog = false
+                    showManualPinDialog = true
+                }) {
+                    Text("Enter PIN Manually")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { showCameraPermissionDeniedDialog = false }) {
-                    Text("OK")
+                    Text("Cancel")
                 }
             }
         )
+    }
+
+    // Add Patient Method Selection Dialog
+    if (showAddPatientMethodDialog) {
+        AddPatientMethodDialog(
+            onDismiss = { showAddPatientMethodDialog = false },
+            onScanQR = {
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (hasPermission) {
+                    navController.navigate("qr_scanner")
+                } else {
+                    showCameraPermissionDialog = true
+                }
+            },
+            onManualEntry = {
+                showManualPinDialog = true
+            }
+        )
+    }
+
+    // Manual PIN Entry Dialog
+    if (showManualPinDialog) {
+        val viewModel: CaregiverPatientsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+            factory = CaregiverPatientsViewModelFactory(repository)
+        )
+        val importStatus by viewModel.importStatus.collectAsState()
+
+        ManualPinEntryDialog(
+            onDismiss = {
+                showManualPinDialog = false
+                viewModel.resetImportStatus()
+            },
+            onConfirm = { pin ->
+                viewModel.importPatientFromPin(pin)
+            },
+            isLoading = importStatus is ImportStatus.Loading
+        )
+
+        // Handle import status - navigate back to show result in main screen
+        LaunchedEffect(importStatus) {
+            when (importStatus) {
+                is ImportStatus.Success -> {
+                    showManualPinDialog = false
+                    // The caregiver_patients composable will show success message
+                }
+                is ImportStatus.Error -> {
+                    showManualPinDialog = false
+                    // The caregiver_patients composable will show error message
+                }
+                else -> {}
+            }
+        }
     }
 }
 
