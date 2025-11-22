@@ -3,7 +3,7 @@ package com.example.medicaladherence
 import android.app.Application
 import androidx.lifecycle.lifecycleScope
 import com.example.medicaladherence.data.SeedData
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

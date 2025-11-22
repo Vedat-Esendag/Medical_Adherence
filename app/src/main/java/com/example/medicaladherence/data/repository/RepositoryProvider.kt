@@ -1,8 +1,7 @@
-package com.example.medicaladherence.data.repo
+package com.example.medicaladherence.data.repository
 
 import android.content.Context
 import com.example.medicaladherence.data.firebase.FirebaseAuthManager
-import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 

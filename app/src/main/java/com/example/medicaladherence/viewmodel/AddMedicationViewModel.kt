@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.model.MedicationFrequency
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.notification.NotificationScheduler
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -28,7 +28,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import android.util.Log
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.notification.NotificationScheduler
 import com.example.medicaladherence.ui.nav.Routes

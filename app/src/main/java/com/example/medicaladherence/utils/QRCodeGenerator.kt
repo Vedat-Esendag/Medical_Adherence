@@ -1,8 +1,8 @@
-package com.example.medicaladherence.util
+package com.example.medicaladherence.utils
 
 import android.graphics.Bitmap
 import android.graphics.Color
-import com.example.medicaladherence.utils.AppConstants
+
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter

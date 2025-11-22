@@ -2,7 +2,7 @@ package com.example.medicaladherence.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
 import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.MutableStateFlow

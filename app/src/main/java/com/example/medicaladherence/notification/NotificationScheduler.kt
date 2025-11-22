@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.*
 import com.example.medicaladherence.data.model.Medication
 import com.example.medicaladherence.data.model.MedicationFrequency
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import kotlinx.coroutines.flow.first
 import java.time.LocalTime
 import java.time.Duration

@@ -37,11 +37,9 @@ Medical_Adherence/
 │   │   │   │   │   │   ├── DoseEvent.kt                # Dose tracking data class
 │   │   │   │   │   │   ├── PatientProfile.kt           # Patient profile model
 │   │   │   │   │   │   └── PatientDataExport.kt        # Export/import model for QR codes
-│   │   │   │   │   ├── repo/
-│   │   │   │   │   │   ├── InMemoryMedicationRepository.kt  # Legacy in-memory repository
-│   │   │   │   │   │   └── RepositoryProvider.kt           # Singleton pattern provider
 │   │   │   │   │   ├── repository/
-│   │   │   │   │   │   └── FirebaseMedicationRepository.kt  # Firebase data operations
+│   │   │   │   │   │   ├── FirebaseMedicationRepository.kt  # Firebase data operations
+│   │   │   │   │   │   └── RepositoryProvider.kt           # Singleton pattern provider
 │   │   │   │   │   └── firebase/
 │   │   │   │   │       ├── FirebaseAuthManager.kt       # Authentication & token management
 │   │   │   │   │       ├── FirestoreModels.kt           # Firebase data models
@@ -91,14 +89,12 @@ Medical_Adherence/
 │   │   │   │   │   ├── NotificationScheduler.kt         # WorkManager setup
 │   │   │   │   │   └── MedicationReminderWorker.kt      # WorkManager task
 │   │   │   │   │
-│   │   │   │   ├── util/
-│   │   │   │   │   ├── QRCodeGenerator.kt               # Generate QR codes
-│   │   │   │   │   └── QRCodeScanner.kt                 # Parse scanned QR codes
-│   │   │   │   │
 │   │   │   │   └── utils/
 │   │   │   │       ├── Constants.kt                     # App-wide constants
 │   │   │   │       ├── FCMHelper.kt                     # FCM API helper
-│   │   │   │       └── LocalFCMHelper.kt                # Local FCM server helper
+│   │   │   │       ├── LocalFCMHelper.kt                # Local FCM server helper
+│   │   │   │       ├── QRCodeGenerator.kt               # Generate QR codes
+│   │   │   │       └── QRCodeScanner.kt                 # Parse scanned QR codes
 │   │   │   │
 │   │   │   └── res/                                     # Resources
 │   │   │       ├── drawable/
@@ -118,12 +114,7 @@ Medical_Adherence/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── local-fcm-server/                                    # Local FCM test server (Node.js)
-│   ├── server.js                                       # Express server for testing
-│   └── package.json
-│
 ├── docs/                                                # Documentation
-├── scripts/                                             # Utility scripts
 ├── build.gradle.kts                                    # Root Gradle config
 ├── settings.gradle.kts                                 # Gradle settings
 ├── firebase.json                                       # Firebase config
@@ -150,8 +141,7 @@ Medical_Adherence/
 | Package | Files | Purpose |
 |---------|-------|---------|
 | `data.model` | `Medication`, `DoseEvent`, `PatientProfile`, `PatientDataExport` | Core domain models |
-| `data.repo` | `InMemoryMedicationRepository`, `RepositoryProvider` | Local repository (legacy), singleton provider |
-| `data.repository` | `FirebaseMedicationRepository` | Firestore operations (CRUD, adherence calculations, patient management) |
+| `data.repository` | `FirebaseMedicationRepository`, `RepositoryProvider` | Firestore operations (CRUD, adherence calculations, patient management), singleton provider |
 | `data.firebase` | `FirebaseAuthManager`, `FirestoreModels`, `FirestoreExtensions` | Firebase integration, authentication, Firestore mappings |
 
 ### 3.3 ViewModel Layer (State Management)
@@ -1144,7 +1134,6 @@ android {
 
 ### Local Development
 - **Firebase Emulator**: Can be configured for local testing
-- **Local FCM Server**: `local-fcm-server/` directory for FCM testing
 - **Seed Data**: Pre-populated with Maria and Ahmed test patients
 
 ### Sample Data

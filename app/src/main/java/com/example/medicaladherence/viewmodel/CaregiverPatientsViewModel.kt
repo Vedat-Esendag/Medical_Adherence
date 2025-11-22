@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.medicaladherence.data.model.PatientProfile
-import com.example.medicaladherence.data.repo.RepositoryProvider
+import com.example.medicaladherence.data.repository.RepositoryProvider
 import com.example.medicaladherence.data.repository.FirebaseMedicationRepository
-import com.example.medicaladherence.util.QRCodeScanner
+import com.example.medicaladherence.utils.QRCodeScanner
 import com.example.medicaladherence.utils.AppConstants
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
