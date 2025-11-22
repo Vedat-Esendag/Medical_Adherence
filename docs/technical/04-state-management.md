@@ -139,10 +139,24 @@ _uiState.value = _uiState.value.copy(
 Repository exposes `Flow<T>`:
 
 ```kotlin
-class MedicationRepository {
-    val medications: Flow<List<Medication>> =
-        medicationDao.getAllMedications()
-            .map { entities → entities.map { it.toMedication() } }
+class FirebaseMedicationRepository {
+    fun getMedications(): Flow<List<Medication>> = callbackFlow {
+        val listener = firestore
+            .collection("users")
+            .document(userId)
+            .collection("medications")
+            .addSnapshotListener { snapshot, error →
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val meds = snapshot?.documents?.mapNotNull { doc →
+                    doc.toObject<FirestoreMedication>()?.toMedication()
+                } ?: emptyList()
+                trySend(meds)
+            }
+        awaitClose { listener.remove() }
+    }
 }
 ```
 

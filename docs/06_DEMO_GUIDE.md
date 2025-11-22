@@ -291,7 +291,7 @@ This comprehensive guide will help you deliver a professional 8-10 minute demons
 
 **Troubleshooting:** If notification doesn't arrive:
 - Check internet connection
-- Verify local FCM server is running (if using emulators)
+- Verify local FCM server is running (cd local-fcm-server && npm start)
 - Mention: "In production, this would use Cloud Functions for guaranteed delivery"
 
 ### Caregiver Experience Summary (10 seconds)
@@ -537,10 +537,11 @@ This comprehensive guide will help you deliver a professional 8-10 minute demons
 
 **Solutions:**
 1. **Check internet connection** on both devices
-2. **Verify local FCM server is running** (if using emulators)
+2. **Verify local FCM server is running**
    ```bash
-   # In terminal, you should see:
-   Server listening on port 3000
+   cd local-fcm-server
+   npm start
+   # Should see: "Server listening on port 3000"
    ```
 3. **Check FCM token** in Firebase Console (Firestore → users → patient doc)
 4. **Restart app** on patient device (refreshes FCM token)
@@ -765,7 +766,7 @@ Be prepared to address:
 
 **1 Hour Before Demo:**
 - [ ] Clear app data on all devices
-- [ ] Start local FCM server (if needed)
+- [ ] Start local FCM server: cd local-fcm-server && npm start
 - [ ] Position devices for visibility
 - [ ] Enable Do Not Disturb on all devices
 - [ ] Test QR code scanning lighting

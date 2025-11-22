@@ -1,12 +1,27 @@
 # Navigation Architecture
 
 ## TL;DR
-Single Activity with Jetpack Compose Navigation. Bottom nav for main screens, standard back navigation for forms. Type-safe route constants.
+Single Activity with Jetpack Compose Navigation supporting dual-role flows (Patient + Caregiver). Separate NavHost for each role with role-specific bottom navigation. Type-safe route constants.
 
 ## Navigation Setup
 
-### NavHost Configuration
-Located in `MainActivity.kt:132-184`.
+### Role-Based Navigation
+**Location**: `MainActivity.kt`
+
+```kotlin
+// In MainActivity - switches based on user role
+if (userProfile?.role == "patient") {
+    PatientMainScreen(repository, highContrastMode, onHighContrastChanged)
+} else if (userProfile?.role == "caregiver") {
+    CaregiverMainScreen(repository)
+} else {
+    // Show profile selection screen
+    ProfileSelectionScreen(...)
+}
+```
+
+### Patient NavHost Configuration
+**Location**: `MainActivity.kt` - `PatientMainScreen` composable
 
 ```kotlin
 NavHost(
@@ -20,44 +35,171 @@ NavHost(
     composable(Routes.SETTINGS) { SettingsScreen(...) }
     composable(
         route = "add_medication?id={medId}",
-        arguments = listOf(navArgument("medId") { ... })
-    ) { AddEditMedicationScreen(...) }
+        arguments = listOf(navArgument("medId") { 
+            type = NavType.StringType
+            nullable = true
+        })
+    ) { 
+        AddEditMedicationScreen(...) 
+    }
 }
 ```
+
+### Caregiver NavHost Configuration
+**Location**: `MainActivity.kt` - `CaregiverMainScreen` composable
+
+```kotlin
+NavHost(
+    navController = navController,
+    startDestination = "caregiver_patients"
+) {
+    composable("caregiver_patients") {
+        CaregiverPatientsScreen(
+            onPatientClick = { patientId ->
+                navController.navigate("caregiver_patient_detail/$patientId")
+            },
+            onAddPatientClick = { /* Show add method dialog */ }
+        )
+    }
+    
+    composable("qr_scanner") {
+        QRScannerScreen(
+            onQRCodeScanned = { qrData -> /* Add patient */ },
+            onNavigateBack = { navController.popBackStack() }
+        )
+    }
+    
+    composable(
+        route = "caregiver_patient_detail/{patientId}",
+        arguments = listOf(navArgument("patientId") { 
+            type = NavType.StringType 
+        })
+    ) { backStackEntry ->
+        val patientId = backStackEntry.arguments?.getString("patientId")
+        CaretakerScreen(
+            patientId = patientId,
+            onNavigateBack = { navController.popBackStack() }
+        )
+    }
+}
+```
+
+## Dual Role Navigation
+
+### Two Separate Navigation Flows
+
+The app has **two completely separate NavHost instances**:
+1. **PatientMainScreen** - For patients managing their own medications
+2. **CaregiverMainScreen** - For caregivers monitoring patients
+
+**Role determined by**: Firebase user profile `role` field ("patient" or "caregiver")
+
+**Location**: `MainActivity.kt` - switches between PatientMainScreen and CaregiverMainScreen based on role
 
 ## Routes
 
 ### Route Constants
-**Location**: `app/src/main/java/com/example/medicaladherence/ui/nav/NavGraph.kt:6-13`
+**Location**: `app/src/main/java/com/example/medicaladherence/ui/nav/NavGraph.kt`
 
 ```kotlin
 object Routes {
+    // Patient Routes
     const val HOME = "home"
     const val MEDICATIONS = "medications"
     const val ADD_MEDICATION = "add_medication"
     const val EDIT_MEDICATION = "add_medication?id={medId}"
     const val STATS = "stats"
     const val SETTINGS = "settings"
+    
+    // Caregiver Routes
+    const val CARETAKER = "caretaker"  // Patient detail view
 }
+
+// Additional Caregiver Routes (defined inline in CaregiverMainScreen)
+const val CAREGIVER_PATIENTS = "caregiver_patients"      // Patient list
+const val QR_SCANNER = "qr_scanner"                      // QR code scanner
+const val CAREGIVER_PATIENT_DETAIL = "caregiver_patient_detail/{patientId}"
 ```
 
-### Route Types
+### Patient Routes
 
 **Simple Routes** (no arguments):
-- `home` - Home screen
-- `medications` - Medications library
-- `stats` - Statistics screen
-- `settings` - Settings screen
+- `home` - Today's medication doses with countdown
+- `medications` - Full medication library
+- `stats` - Weekly adherence statistics
+- `settings` - App settings (font size, high contrast, PIN)
 
 **Parameterized Routes**:
-- `add_medication?id={medId}` - Add (id=null) or Edit (id=medicationId)
+- `add_medication?id={medId}` - Add new medication (id=null) or Edit existing (id=medicationId)
+
+### Caregiver Routes
+
+**Simple Routes**:
+- `caregiver_patients` - List of all paired patients
+- `qr_scanner` - QR code scanner to pair with patient
+
+**Parameterized Routes**:
+- `caregiver_patient_detail/{patientId}` - Patient monitoring dashboard with real-time adherence data
+
+## Role-Specific Navigation Flows
+
+### Patient Flow
+```
+App Launch
+    ↓
+Check User Profile (Firebase)
+    ↓
+Role = "patient"
+    ↓
+PatientMainScreen (NavHost)
+    ↓
+Bottom Nav: Home | Medications | Stats | Settings
+    ↓
+User can navigate freely between screens
+```
+
+**Key Patient Journeys**:
+1. **Track dose**: Home → Mark Taken/Missed → See updated stats
+2. **Add medication**: Medications → FAB (+) → Add screen → Save → Back to list
+3. **Check progress**: Any screen → Stats tab → View weekly adherence
+4. **Share with caregiver**: Settings → Generate PIN/QR → Share with family member
+
+### Caregiver Flow
+```
+App Launch
+    ↓
+Check User Profile (Firebase)
+    ↓
+Role = "caregiver"
+    ↓
+CaregiverMainScreen (NavHost)
+    ↓
+Start: Caregiver Patients List
+    ↓
+FAB (+) → Add Patient Method Dialog
+    ├─ Scan QR Code → QR Scanner Screen
+    └─ Enter PIN → Manual PIN Dialog
+    ↓
+Patient Added → Patient List
+    ↓
+Tap Patient → Patient Detail Dashboard
+    ↓
+View real-time adherence, send reminders
+```
+
+**Key Caregiver Journeys**:
+1. **Add patient**: Patient List → FAB → Scan QR or Enter PIN → Patient added
+2. **Monitor patient**: Patient List → Tap patient → View dashboard with real-time data
+3. **Send reminder**: Patient Detail → Send Reminder button → FCM notification to patient
 
 ## Navigation Patterns
 
 ### Bottom Navigation
-**Location**: `MainActivity.kt:52-128`
 
-Shows on main screens:
+#### Patient Bottom Navigation
+**Location**: `MainActivity.kt` - `PatientMainScreen`
+
+Shows on main patient screens:
 ```kotlin
 val routesWithBottomBar = listOf(
     Routes.HOME,
@@ -68,10 +210,22 @@ val routesWithBottomBar = listOf(
 ```
 
 Four tabs:
-1. **Home** (house icon)
-2. **Medications** (💊 emoji)
-3. **Stats** (📊 emoji)
-4. **Settings** (gear icon)
+1. **Home** (🏠 house icon) - Today's doses
+2. **Medications** (💊 pill icon) - Medication library
+3. **Stats** (📊 chart icon) - Adherence statistics
+4. **Settings** (⚙️ gear icon) - App settings
+
+**Hidden on**: Add/Edit medication screens
+
+#### Caregiver Bottom Navigation
+**Location**: `MainActivity.kt` - `CaregiverMainScreen`
+
+Caregiver flow uses **FAB (Floating Action Button)** instead of bottom nav:
+- Main screen: Patient list
+- FAB: "+" button to add new patient (QR scan or manual PIN entry)
+- No bottom navigation bar in caregiver mode
+
+**Back navigation**: Used to return from patient detail view to patient list
 
 ### Back Navigation
 Used for:

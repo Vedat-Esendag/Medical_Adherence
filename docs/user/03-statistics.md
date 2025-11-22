@@ -116,4 +116,4 @@ Based on your weekly percentage:
 - Doesn't affect stats until marked
 
 ## Privacy Note
-All statistics calculated locally on your device. No data sent to servers or shared externally.
+Statistics are calculated from your medication data stored securely in Firebase Firestore. If you've paired with a caregiver via PIN/QR code, they can view your statistics to help monitor your adherence. Otherwise, your data remains private and is not shared with anyone.

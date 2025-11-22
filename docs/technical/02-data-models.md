@@ -1,7 +1,7 @@
-# Data Models & Entities
+# Data Models & Firestore Documents
 
 ## TL;DR
-Two main models: **Medication** (what to take) and **DoseEvent** (tracking when taken). Room entities mirror these with type converters for complex types.
+Two main domain models: **Medication** (what to take) and **DoseEvent** (tracking when taken). Firestore DTOs handle serialization to/from cloud storage. Dual-role system supports both patients and caregivers.
 
 ## Domain Models
 
@@ -30,7 +30,7 @@ data class Medication(
 ### MedicationFrequency
 Enum for scheduling options.
 
-**Location**: `Medication.kt:6-12`
+**Location**: `Medication.kt`
 
 ```kotlin
 enum class MedicationFrequency {
@@ -63,298 +63,376 @@ data class DoseEvent(
 - `taken=false`: Marked as missed
 - No event = not yet marked
 
-## Room Entities
+### PatientProfile
+User profile with role and authentication information.
 
-### MedicationEntity
-Database representation of Medication.
-
-**Location**: `app/src/main/java/com/example/medicaladherence/data/local/entity/MedicationEntity.kt`
+**Location**: `app/src/main/java/com/example/medicaladherence/data/model/PatientProfile.kt`
 
 ```kotlin
-@Entity(tableName = "medications")
-@TypeConverters(Converters::class)
-data class MedicationEntity(
-    @PrimaryKey
-    val id: String,
-    val name: String,
-    val dosage: String,
-    val times: List<String>,            // Converted by Converters
-    val notes: String?,
-    val frequency: MedicationFrequency, // Converted by Converters
-    val specificDays: List<Int>         // Converted by Converters
+data class PatientProfile(
+    val userId: String,          // Firebase UID or offline ID
+    val role: String,            // "patient" or "caregiver"
+    val name: String,            // Display name
+    val pin: String,             // 6-digit pairing PIN (patients only)
+    val fcmToken: String? = null // For push notifications
 )
 ```
 
-**Converters**:
-- `List<String>` → JSON array
-- `List<Int>` → Comma-separated string
-- `MedicationFrequency` → String name
+## Firestore Document Models
 
-### DoseEventEntity
-Database representation of DoseEvent.
+### FirestoreUserProfile
+User profile stored in Firestore `users/` collection.
 
-**Location**: `app/src/main/java/com/example/medicaladherence/data/local/entity/DoseEventEntity.kt`
+**Location**: `app/src/main/java/com/example/medicaladherence/data/firebase/FirestoreModels.kt`
 
 ```kotlin
-@Entity(
-    tableName = "dose_events",
-    primaryKeys = ["medId", "date", "time"]  // Composite key
-)
-@TypeConverters(Converters::class)
-data class DoseEventEntity(
-    val medId: String,           // Foreign key to medications
-    val date: LocalDate,         // Converted by Converters
-    val time: String,
-    val taken: Boolean,
-    val timestamp: Long
+data class FirestoreUserProfile(
+    val role: String = "",           // "patient" | "caregiver"
+    val name: String = "",           // User's display name
+    val pin: String = "",            // 6-digit pairing PIN
+    val fcmToken: String? = null,    // FCM token for notifications
+    val createdAt: Timestamp? = null // Account creation time
 )
 ```
 
-**Composite Primary Key**: One event per (medication, date, time)
+**Firestore Path**: `users/{userId}`
 
-### SettingsEntity
-Stores user preferences.
+### FirestoreMedication
+Medication document stored in user's medications subcollection.
 
-**Location**: `app/src/main/java/com/example/medicaladherence/data/local/entity/SettingsEntity.kt`
+**Location**: `FirestoreModels.kt`
 
 ```kotlin
-@Entity(tableName = "settings")
-data class SettingsEntity(
-    @PrimaryKey
-    val id: Int = 1,              // Single row
-    val fontScale: Float = 1.0f   // 1.0 or 1.15
+data class FirestoreMedication(
+    val id: String = "",
+    val name: String = "",
+    val dosage: String = "",
+    val times: List<String> = emptyList(),
+    val notes: String? = null,
+    val frequency: String = "daily",
+    val specificDays: List<Int> = emptyList(),
+    val createdAt: Timestamp? = null
 )
 ```
 
-## Type Converters
+**Firestore Path**: `users/{userId}/medications/{medicationId}`
 
-### Converters Class
-Handles complex type storage in SQLite.
+### FirestoreDoseEvent
+Dose event document stored in user's doseEvents subcollection.
 
-**Location**: `app/src/main/java/com/example/medicaladherence/data/local/Converters.kt`
+**Location**: `FirestoreModels.kt`
 
 ```kotlin
-class Converters {
-    // List<String> ↔ JSON
-    @TypeConverter
-    fun fromStringList(value: List<String>): String {
-        return json.encodeToString(value)
-    }
-
-    @TypeConverter
-    fun toStringList(value: String): List<String> {
-        return json.decodeFromString(value)
-    }
-
-    // List<Int> ↔ comma-separated
-    @TypeConverter
-    fun fromIntList(value: List<Int>): String {
-        return value.joinToString(",")
-    }
-
-    @TypeConverter
-    fun toIntList(value: String): List<Int> {
-        return if (value.isEmpty()) emptyList()
-               else value.split(",").map { it.toInt() }
-    }
-
-    // MedicationFrequency ↔ String
-    @TypeConverter
-    fun fromFrequency(value: MedicationFrequency): String {
-        return value.name
-    }
-
-    @TypeConverter
-    fun toFrequency(value: String): MedicationFrequency {
-        return MedicationFrequency.valueOf(value)
-    }
-
-    // LocalDate ↔ Long (epoch day)
-    @TypeConverter
-    fun fromLocalDate(value: LocalDate): Long {
-        return value.toEpochDay()
-    }
-
-    @TypeConverter
-    fun toLocalDate(value: Long): LocalDate {
-        return LocalDate.ofEpochDay(value)
-    }
-}
+data class FirestoreDoseEvent(
+    val medId: String = "",
+    val date: String = "",           // ISO date string (yyyy-MM-dd)
+    val time: String = "",           // HH:mm
+    val taken: Boolean = false,
+    val timestamp: Timestamp? = null
+)
 ```
 
-## Extension Functions
+**Firestore Path**: `users/{userId}/doseEvents/{compositeId}`
+- `compositeId` format: `{medId}_{date}_{time}`
+- Example: `abc123_2025-01-15_07:00`
 
-### Entity ↔ Model Mapping
+### FirestoreSettings
+User settings stored in Firestore.
 
-**Location**: `app/src/main/java/com/example/medicaladherence/data/local/Mappers.kt`
+**Location**: `FirestoreModels.kt`
 
 ```kotlin
-// Entity → Model
-fun MedicationEntity.toMedication() = Medication(
+data class FirestoreSettings(
+    val fontScale: Float = 1.0f,         // Font size multiplier
+    val highContrastMode: Boolean = false, // High contrast theme
+    val caretakerPin: String? = null     // Optional security PIN
+)
+```
+
+**Firestore Path**: `users/{userId}/settings/app_settings`
+
+### CaregiverLink
+Links a caregiver to a patient for monitoring.
+
+**Location**: `FirestoreModels.kt`
+
+```kotlin
+data class CaregiverLink(
+    val caregiverUserId: String = "",
+    val patientUserId: String = "",
+    val patientPin: String = "",
+    val patientName: String = "",
+    val addedAt: Timestamp? = null,
+    val displayName: String? = null,    // Caregiver's custom name for patient
+    val phoneNumber: String? = null,
+    val notes: String? = null
+)
+```
+
+**Firestore Path**: `caregiver_links/{linkId}`
+- Queryable by `caregiverUserId` to get all patients for a caregiver
+- Queryable by `patientUserId` to get all caregivers for a patient
+
+## Firestore Collections Structure
+
+```
+Firestore Database
+│
+├── users/
+│   └── {userId}/                          (Document)
+│       ├── Fields:
+│       │   - role: "patient" | "caregiver"
+│       │   - name: String
+│       │   - pin: String (6-digit)
+│       │   - fcmToken: String
+│       │   - createdAt: Timestamp
+│       │
+│       ├── medications/                   (Subcollection)
+│       │   └── {medicationId}/            (Document)
+│       │       - id, name, dosage, times, notes
+│       │       - frequency, specificDays, createdAt
+│       │
+│       ├── doseEvents/                    (Subcollection)
+│       │   └── {compositeId}/             (Document)
+│       │       - Format: "{medId}_{date}_{time}"
+│       │       - medId, date, time, taken, timestamp
+│       │
+│       └── settings/                      (Subcollection)
+│           └── app_settings/              (Document)
+│               - fontScale, highContrastMode, caretakerPin
+│
+├── caregiver_links/                       (Top-level collection)
+│   └── {linkId}/                          (Document)
+│       - caregiverUserId, patientUserId
+│       - patientPin, patientName
+│       - addedAt, displayName, phoneNumber, notes
+```
+
+## Serialization & Deserialization
+
+### Extension Functions
+Conversion between domain models and Firestore DTOs.
+
+**Location**: `app/src/main/java/com/example/medicaladherence/data/firebase/FirestoreExtensions.kt`
+
+```kotlin
+// Medication → Firestore
+fun Medication.toFirestoreDto() = FirestoreMedication(
     id = id,
     name = name,
     dosage = dosage,
     times = times,
     notes = notes,
-    frequency = frequency,
-    specificDays = specificDays
+    frequency = frequency.name.lowercase(),
+    specificDays = specificDays,
+    createdAt = Timestamp.now()
 )
 
-// Model → Entity
-fun Medication.toEntity() = MedicationEntity(
+// Firestore → Medication
+fun FirestoreMedication.toMedication() = Medication(
     id = id,
     name = name,
     dosage = dosage,
     times = times,
     notes = notes,
-    frequency = frequency,
+    frequency = MedicationFrequency.valueOf(
+        frequency.replaceFirstChar { it.uppercase() }
+    ),
     specificDays = specificDays
 )
-
-// Similar for DoseEvent
-fun DoseEventEntity.toDoseEvent() = DoseEvent(...)
-fun DoseEvent.toEntity() = DoseEventEntity(...)
 ```
 
 **Why Separate?**
-- Domain models have no Room annotations
-- Entities are Room-specific
+- Domain models have no Firebase dependencies
+- DTOs are Firestore-specific with defaults for missing fields
 - Easier to test domain logic
 - Clear separation of concerns
+- Backward compatibility when schema evolves
 
-## UI State Models
-
-### DoseItem
-Combines medication with dose status for UI display.
-
-**Location**: `app/src/main/java/com/example/medicaladherence/viewmodel/HomeViewModel.kt:32-36`
-
-```kotlin
-data class DoseItem(
-    val medication: Medication,
-    val time: String,            // "07:00"
-    val taken: Boolean?          // null=not marked, true=taken, false=missed
-)
-```
-
-**Usage**: Home screen dose cards
-
-### HomeUiState
-Complete state for Home screen.
-
-**Location**: `HomeViewModel.kt:17-30`
-
-```kotlin
-data class HomeUiState(
-    val todayDate: LocalDate = LocalDate.now(),
-    val nextDoseCountdown: String = "--:--",
-    val nextDoseName: String = "",
-    val nextDoseDosage: String = "",
-    val nextDoseTime: String = "",
-    val todayDoses: List<DoseItem> = emptyList(),
-    val weeklyAdherencePercent: Int = 0,
-    val streakDays: Int = 0,
-    val snackbarMessage: String? = null,
-    val isInDoseWindow: Boolean = false,
-    val nextDoseMedicationId: String = "",
-    val lastMarkedDose: Pair<String, String>? = null
-)
-```
-
-### DayBar
-Daily stats for bar chart.
-
-**Location**: `app/src/main/java/com/example/medicaladherence/viewmodel/StatsViewModel.kt`
-
-```kotlin
-data class DayBar(
-    val dayLabel: String,        // "Mon", "Tue", etc.
-    val percentage: Int          // 0-100
-)
-```
-
-## Data Validation
-
-### Medication Validation
-Performed in `AddMedicationViewModel`:
-
-```kotlin
-private fun validate() {
-    nameError = if (name.isBlank()) "Name required" else null
-    dosageError = if (dosage.isBlank()) "Dosage required" else null
-    timesError = if (times.isEmpty()) "Add at least one time" else null
-
-    isValid = nameError == null && dosageError == null && timesError == null
-}
-```
-
-### Time Format
-- Always stored as "HH:mm" (24-hour)
-- Parsed/displayed using `DateTimeFormatter.ofPattern("HH:mm")`
-- Example: "07:00", "19:30"
-
-## Database Relationships
+## Data Relationships
 
 ### Logical Relationships
 ```
-Medication (1) ←→ (N) DoseEvent
-  id                  medId
+User (1) → (N) Medications
+User (1) → (N) DoseEvents  
+User (1) → (N) CaregiverLinks
+
+Medication (1) → (N) DoseEvents (via medId)
+CaregiverLink (N) ← (1) Caregiver User
+CaregiverLink (N) → (1) Patient User
 ```
 
-- One medication can have many dose events
-- DoseEvents reference medication by `medId`
-- Cascade delete: Deleting medication deletes all its events
+### Firestore Implementation
+- **Subcollections** for user-specific data (medications, doseEvents, settings)
+- **Top-level collection** for many-to-many relationships (caregiver_links)
+- **Composite IDs** for uniqueness (dose events)
+- **Indexes** on query fields (caregiverUserId, patientPin)
 
-**Implementation**: `MedicationRepository.kt:33-36`
+### Cascade Operations
+Handled in repository layer:
+
 ```kotlin
+// FirebaseMedicationRepository.kt
 suspend fun deleteMedication(medId: String) {
-    medicationDao.deleteMedicationById(medId)
-    doseEventDao.deleteEventsForMedication(medId)
+    // Delete medication document
+    getCurrentUserDoc()
+        .collection("medications")
+        .document(medId)
+        .delete()
+        .await()
+    
+    // Delete all associated dose events
+    getCurrentUserDoc()
+        .collection("doseEvents")
+        .whereEqualTo("medId", medId)
+        .get()
+        .await()
+        .documents
+        .forEach { it.reference.delete() }
 }
 ```
+
+## Query Patterns
+
+### Common Queries
+
+**Get user's medications**:
+```kotlin
+val medications: Flow<List<Medication>> = callbackFlow {
+    val listener = firestore
+        .collection("users")
+        .document(userId)
+        .collection("medications")
+        .addSnapshotListener { snapshot, error ->
+            // Convert and emit
+        }
+    awaitClose { listener.remove() }
+}
+```
+
+**Find patient by PIN**:
+```kotlin
+suspend fun getPatientDataByPin(pin: String): PatientDataExport? {
+    val users = firestore
+        .collection("users")
+        .whereEqualTo("pin", pin)
+        .limit(1)
+        .get()
+        .await()
+    
+    return if (users.isEmpty) null
+           else loadPatientData(users.documents[0].id)
+}
+```
+
+**Get caregiver's patients**:
+```kotlin
+suspend fun getCaregiverPatients(): Flow<List<PatientData>> {
+    val caregiverId = getCurrentUserId()
+    return firestore
+        .collection("caregiver_links")
+        .whereEqualTo("caregiverUserId", caregiverId)
+        .snapshots()
+        .map { /* transform to patient data */ }
+}
+```
+
+## Offline Behavior
+
+### Cached Data
+- Firestore automatically caches all read data
+- Writes queue locally when offline
+- App functions fully offline using cached data
+- Real-time listeners continue working with cached data
+
+### Conflict Resolution
+- Firestore uses **last-write-wins** strategy
+- Timestamp fields help identify most recent update
+- Optimistic UI updates provide instant feedback
+- Server changes reconcile automatically when online
 
 ## Sample Data
 
-### Example Medication
-```kotlin
-Medication(
-    id = "abc-123",
-    name = "Amlodipine",
-    dosage = "5 mg",
-    times = listOf("07:00", "19:00"),
-    notes = "Take with food",
-    frequency = MedicationFrequency.Daily,
-    specificDays = emptyList()
-)
-```
-
-### Example DoseEvent
-```kotlin
-DoseEvent(
-    medId = "abc-123",
-    date = LocalDate.of(2025, 10, 26),
-    time = "07:00",
-    taken = true,
-    timestamp = 1729933200000
-)
-```
-
-## Model Evolution
-
-### Adding Fields
-1. Add to data class
-2. Add to entity
-3. Update converters if needed
-4. Create Room migration
-5. Update mappers
-
-### Migration Example
-```kotlin
-val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL(
-            "ALTER TABLE medications ADD COLUMN color TEXT DEFAULT '#0D47A1'"
-        )
-    }
+### Example Medication Document
+```json
+{
+  "id": "abc-123",
+  "name": "Amlodipine",
+  "dosage": "5 mg",
+  "times": ["07:00", "19:00"],
+  "notes": "Take with food",
+  "frequency": "daily",
+  "specificDays": [],
+  "createdAt": { "_seconds": 1729933200, "_nanoseconds": 0 }
 }
 ```
+
+### Example DoseEvent Document
+```json
+{
+  "medId": "abc-123",
+  "date": "2025-01-15",
+  "time": "07:00",
+  "taken": true,
+  "timestamp": { "_seconds": 1736928000, "_nanoseconds": 0 }
+}
+```
+
+### Example CaregiverLink Document
+```json
+{
+  "caregiverUserId": "xyz789",
+  "patientUserId": "abc123",
+  "patientPin": "487392",
+  "patientName": "Maria Garcia",
+  "displayName": "Mom",
+  "addedAt": { "_seconds": 1736928000, "_nanoseconds": 0 }
+}
+```
+
+## Schema Evolution
+
+### Adding New Fields
+Firestore is schema-less, making evolution easy:
+
+1. **Add field to DTO with default value**:
+```kotlin
+data class FirestoreMedication(
+    // ... existing fields ...
+    val colorCode: String = "#0D47A1"  // NEW FIELD
+)
+```
+
+2. **Add field to domain model**:
+```kotlin
+data class Medication(
+    // ... existing fields ...
+    val colorCode: String = "#0D47A1"
+)
+```
+
+3. **Update mapping functions**:
+```kotlin
+fun FirestoreMedication.toMedication() = Medication(
+    // ... existing mappings ...
+    colorCode = colorCode  // Maps new field
+)
+```
+
+4. **Existing documents work automatically**:
+- Old documents return default value for missing field
+- No migration scripts needed
+- No breaking changes for existing data
+
+### Deprecating Fields
+1. Add new field with default
+2. Update app logic to use new field
+3. Old field remains in old documents (harmless)
+4. Optional: Run Cloud Function to clean up old field
+
+### Breaking Changes
+For truly breaking changes:
+1. Add version field to documents
+2. Check version in app before reading
+3. Handle multiple versions gracefully
+4. Prompt user to update app if needed

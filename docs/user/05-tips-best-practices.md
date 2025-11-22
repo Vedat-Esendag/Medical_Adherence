@@ -145,17 +145,22 @@ Common solutions:
 
 ## Privacy & Data
 
-### Local Storage
-- All data stays on your device
-- No account needed
-- No cloud backup (yet)
-- Uninstalling = data loss
+### Cloud Storage with Privacy
+- Your data is stored securely in Firebase Firestore
+- Works offline - syncs automatically when internet is available
+- Data persists across app reinstalls (no data loss from uninstalling)
+- Only shared with caregivers you explicitly pair with via PIN/QR code
 
-### Backing Up
-Currently no built-in backup:
-- Write down medications and schedules
-- Take screenshots of library
-- Keep original prescriptions
+### No Account Complexity
+- Anonymous authentication (no email/password required)
+- Simple 6-digit PIN for caregiver pairing
+- No social features or public profiles
+- No ads or third-party data sharing
+
+### Data Backup
+- Automatic cloud backup included
+- Data persists even if you uninstall and reinstall the app
+- Keep your pairing PIN safe to allow caregiver access
 
 ## Getting Help
 

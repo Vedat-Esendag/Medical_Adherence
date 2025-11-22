@@ -6,7 +6,7 @@
 
 ## What It Is
 
-Clean, minimal Android medication tracking app designed for **elderly users**. Built with Jetpack Compose, Material 3, and Room database. Features large touch targets (≥48dp), adjustable fonts, and non-judgmental language.
+Clean, minimal Android medication tracking app designed for **elderly users** with optional caregiver monitoring. Built with Jetpack Compose, Material 3, and Firebase Firestore. Features large touch targets (≥48dp), adjustable fonts, high contrast mode, and non-judgmental language.
 
 **Core Function**: Track daily medications → Monitor adherence with stats → Build consistency with streaks
 
@@ -19,13 +19,15 @@ Clean, minimal Android medication tracking app designed for **elderly users**. B
 | **Language** | Kotlin | 2.0.21 |
 | **UI** | Jetpack Compose + Material 3 | BOM 2024.09.00 |
 | **Architecture** | MVVM (ViewModel + StateFlow) | Lifecycle 2.9.4 |
-| **Database** | Room (SQLite) | 2.6.1 |
+| **Database** | Firebase Firestore (Cloud NoSQL) | BOM 32.7.0 |
+| **Auth** | Firebase Anonymous Auth | BOM 32.7.0 |
+| **Notifications** | FCM + WorkManager | 23.4.0 / 2.9.0 |
 | **Navigation** | Navigation Compose | 2.8.5 |
 | **Async** | Kotlin Coroutines + Flow | 1.9.0 |
 | **Min SDK** | Android 10 (API 29) | - |
 | **Target SDK** | Android 15+ (API 36) | - |
 
-**Build**: Gradle 8.13.0 with KSP for Room annotation processing
+**Build**: Gradle 8.13.0 with KSP and Google Services plugin for Firebase
 
 ---
 
@@ -44,19 +46,21 @@ Clean, minimal Android medication tracking app designed for **elderly users**. B
 │ Repository  │  ← Single source of truth, exposes Flow
 └──────┬──────┘
        ↓
-┌─────────────┐
-│ Room (DAO)  │  ← Database queries, persistence
-└─────────────┘
+┌──────────────────────┐
+│ Firebase Firestore   │  ← Cloud database with offline persistence
+└──────────────────────┘
 ```
 
-**Data Flow**: User Action → ViewModel → Repository → Room → Flow → StateFlow → Screen Recompose
+**Data Flow**: User Action → ViewModel → Repository → Firestore → Real-time Listener → Flow → StateFlow → Screen Recompose
 
 **Key Files**:
 - `MainActivity.kt` - Single activity + NavHost
-- `HomeScreen.kt` - Daily dose tracking UI
+- `HomeScreen.kt` - Daily dose tracking UI (patient)
+- `CaregiverPatientsScreen.kt` - Patient list (caregiver)
 - `HomeViewModel.kt` - State management with StateFlow
-- `MedicationRepository.kt` - Data operations
-- `AppDatabase.kt` - Room database definition
+- `FirebaseMedicationRepository.kt` - Data operations
+- `FirebaseAuthManager.kt` - Authentication & offline IDs
+- `FirestoreModels.kt` - Firestore DTOs
 
 ---
 
@@ -112,7 +116,7 @@ data class DoseEvent(
 )
 ```
 
-**Room Entities**: `MedicationEntity`, `DoseEventEntity` (with type converters for lists)
+**Firestore DTOs**: `FirestoreMedication`, `FirestoreDoseEvent`, `FirestoreUserProfile` (with defaults for missing fields)
 
 ---
 
@@ -122,14 +126,14 @@ data class DoseEvent(
 app/src/main/java/com/example/medicaladherence/
 ├── MainActivity.kt                   # Single activity + navigation
 ├── data/
-│   ├── model/                        # Medication, DoseEvent, enums
-│   ├── local/
-│   │   ├── AppDatabase.kt            # Room database
-│   │   ├── Converters.kt             # Type converters
-│   │   ├── entity/                   # Room entities
-│   │   └── dao/                      # MedicationDao, DoseEventDao
+│   ├── model/                        # Medication, DoseEvent, PatientProfile
+│   ├── firebase/
+│   │   ├── FirebaseAuthManager.kt    # Authentication & offline IDs
+│   │   ├── FirestoreModels.kt        # Firestore DTOs
+│   │   └── FirestoreExtensions.kt    # Serialization helpers
 │   └── repository/
-│       └── MedicationRepository.kt   # Single source of truth
+│       ├── FirebaseMedicationRepository.kt   # Single source of truth
+│       └── RepositoryProvider.kt     # Singleton provider
 ├── viewmodel/                        # HomeViewModel, StatsViewModel, etc.
 └── ui/
     ├── screens/                      # HomeScreen, StatsScreen, etc.
@@ -151,10 +155,10 @@ val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 val uiState by viewModel.uiState.collectAsState()
 ```
 
-### Room with Flow
+### Firestore with Flow
 ```kotlin
-@Dao
-interface MedicationDao {
+// FirebaseMedicationRepository.kt
+fun getMedications(): Flow<List<Medication>> = callbackFlow {
     @Query("SELECT * FROM medications")
     fun getAllMedications(): Flow<List<MedicationEntity>>
 }
@@ -252,8 +256,9 @@ data class HomeUiState(
 
 ### Lifecycle
 - ViewModel survives configuration changes
-- Room queries automatically stop when screen not visible
+- Firestore listeners automatically detach when screen not visible
 - Coroutines cancelled when ViewModel cleared
+- Offline cache persists across app sessions
 
 ---
 

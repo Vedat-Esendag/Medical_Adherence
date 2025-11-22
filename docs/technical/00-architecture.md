@@ -1,7 +1,7 @@
 # Architecture Overview
 
 ## TL;DR
-Modern Android app using **MVVM architecture** with Jetpack Compose, Room database, Kotlin Coroutines, and StateFlow for reactive UI. Single Activity with composable screens.
+Modern Android app using **MVVM architecture** with Jetpack Compose, Firebase Firestore, Kotlin Coroutines, and StateFlow for reactive UI. Single Activity with composable screens. Supports dual roles (patient and caregiver) with real-time cloud sync.
 
 ## Architecture Pattern: MVVM
 
@@ -9,9 +9,9 @@ Modern Android app using **MVVM architecture** with Jetpack Compose, Room databa
 The app follows strict MVVM separation:
 
 **Model**
-- Data classes: `Medication`, `DoseEvent`
-- Room entities: `MedicationEntity`, `DoseEventEntity`
-- Repository: `MedicationRepository`
+- Data classes: `Medication`, `DoseEvent`, `PatientProfile`
+- Firestore DTOs: `FirestoreMedication`, `FirestoreDoseEvent`, `FirestoreUserProfile`
+- Repository: `FirebaseMedicationRepository`
 - Location: `app/src/main/java/com/example/medicaladherence/data/`
 
 **View**
@@ -28,54 +28,70 @@ The app follows strict MVVM separation:
 
 ```
 app/src/main/java/com/example/medicaladherence/
-├── MainActivity.kt                  # Single activity + nav graph
+├── MainActivity.kt                         # Single activity + nav graph
 │
 ├── data/
-│   ├── model/                       # Data classes
-│   │   ├── Medication.kt            # Core medication model
-│   │   ├── DoseEvent.kt             # Dose tracking events
-│   │   └── MedicationFrequency.kt   # Enum for frequencies
+│   ├── model/                              # Data classes
+│   │   ├── Medication.kt                   # Core medication model
+│   │   ├── DoseEvent.kt                    # Dose tracking events
+│   │   ├── PatientProfile.kt               # User profile model
+│   │   └── PatientDataExport.kt            # QR code data structure
 │   │
-│   ├── local/                       # Room database
-│   │   ├── AppDatabase.kt           # Room database definition
-│   │   ├── Converters.kt            # Type converters for Room
-│   │   ├── entity/                  # Room entities
-│   │   │   ├── MedicationEntity.kt
-│   │   │   ├── DoseEventEntity.kt
-│   │   │   └── SettingsEntity.kt
-│   │   └── dao/                     # Data access objects
-│   │       ├── MedicationDao.kt
-│   │       ├── DoseEventDao.kt
-│   │       └── SettingsDao.kt
+│   ├── firebase/                           # Firebase integration
+│   │   ├── FirebaseAuthManager.kt          # Authentication & offline IDs
+│   │   ├── FirestoreModels.kt              # Firestore DTOs
+│   │   └── FirestoreExtensions.kt          # Helper extensions
 │   │
-│   └── repository/                  # Repository layer
-│       └── MedicationRepository.kt  # Single source of truth
+│   ├── repository/                         # Repository layer
+│   │   ├── FirebaseMedicationRepository.kt # Single source of truth
+│   │   └── RepositoryProvider.kt           # Singleton provider
+│   │
+│   └── SeedData.kt                         # Sample data for testing
 │
-├── viewmodel/                       # ViewModels + UI state
+├── fcm/                                    # Firebase Cloud Messaging
+│   └── MyFirebaseMessagingService.kt       # Push notifications
+│
+├── notification/                           # Local notifications
+│   └── MedicationReminderWorker.kt         # WorkManager for reminders
+│
+├── viewmodel/                              # ViewModels + UI state
 │   ├── HomeViewModel.kt
 │   ├── StatsViewModel.kt
 │   ├── MedicationsLibraryViewModel.kt
 │   ├── AddMedicationViewModel.kt
-│   └── SettingsViewModel.kt
+│   ├── SettingsViewModel.kt
+│   ├── ProfileSelectionViewModel.kt        # Choose patient/caregiver role
+│   ├── CaregiverPatientsViewModel.kt       # Caregiver patient list
+│   └── CaretakerViewModel.kt               # Patient monitoring dashboard
 │
-└── ui/
-    ├── screens/                     # Full-screen composables
-    │   ├── HomeScreen.kt
-    │   ├── StatsScreen.kt
-    │   ├── MedicationsLibraryScreen.kt
-    │   ├── AddEditMedicationScreen.kt
-    │   └── SettingsScreen.kt
-    │
-    ├── components/                  # Reusable composables
-    │   └── DoseCard.kt
-    │
-    ├── theme/                       # Material 3 theming
-    │   ├── Color.kt
-    │   ├── Type.kt
-    │   └── Theme.kt
-    │
-    └── nav/                         # Navigation
-        └── NavGraph.kt              # Route constants
+├── ui/
+│   ├── screens/                            # Full-screen composables
+│   │   ├── ProfileSelectionScreen.kt       # Role selection
+│   │   ├── HomeScreen.kt                   # Patient home
+│   │   ├── StatsScreen.kt
+│   │   ├── MedicationsLibraryScreen.kt
+│   │   ├── AddEditMedicationScreen.kt
+│   │   ├── SettingsScreen.kt
+│   │   ├── CaregiverPatientsScreen.kt      # Caregiver patient list
+│   │   ├── CaretakerScreen.kt              # Patient monitoring view
+│   │   └── QRScannerScreen.kt              # QR code scanning
+│   │
+│   ├── components/                         # Reusable composables
+│   │   ├── DoseCard.kt
+│   │   ├── PatientQRDisplayDialog.kt       # Show QR to caregiver
+│   │   └── SetPinDialog.kt                 # PIN entry dialogs
+│   │
+│   └── theme/                              # Material 3 theming
+│       ├── Color.kt
+│       ├── Type.kt
+│       └── Theme.kt                        # Includes high contrast mode
+│
+└── utils/
+    ├── AppConstants.kt                     # App-wide constants
+    ├── QRCodeGenerator.kt                  # QR code generation
+    ├── QRCodeScanner.kt                    # QR code scanning
+    ├── FCMHelper.kt                        # FCM notification helpers
+    └── LocalFCMHelper.kt                   # Local server FCM (dev)
 ```
 
 ## Single Activity Architecture
@@ -88,18 +104,41 @@ app/src/main/java/com/example/medicaladherence/
 
 ### Navigation
 - Jetpack Compose Navigation
-- Routes defined in `Routes` object (`NavGraph.kt:6-13`)
-- Bottom nav shows on: Home, Medications, Stats, Settings
-- Hidden on: Add/Edit screens
+- Dual navigation flows: Patient vs Caregiver
+- Routes defined in `Routes` object
+- Bottom nav shows on: Home, Medications, Stats, Settings (patient) or patient list (caregiver)
+- Hidden on: Add/Edit screens, profile selection
 
 ### Routes
 ```kotlin
+// Initial setup
+PROFILE_SELECTION = "profile_selection"
+
+// Patient routes
 HOME = "home"
 MEDICATIONS = "medications"
 ADD_MEDICATION = "add_medication"
 EDIT_MEDICATION = "add_medication?id={medId}"
 STATS = "stats"
 SETTINGS = "settings"
+
+// Caregiver routes
+CAREGIVER_PATIENTS = "caregiver_patients"
+CAREGIVER_PATIENT_DETAIL = "caregiver_patient_detail/{patientId}"
+QR_SCANNER = "qr_scanner"
+```
+
+### Dual Role Architecture
+The app adapts its navigation based on user role:
+
+**Patient Flow:**
+```
+ProfileSelection → Home → (Medications/Stats/Settings)
+```
+
+**Caregiver Flow:**
+```
+ProfileSelection → CaregiverPatients → (Scan QR / Add PIN) → PatientDetail
 ```
 
 ## Data Flow
@@ -112,7 +151,9 @@ ViewModel (receives event)
     ↓
 Repository (business logic)
     ↓
-Room Database (persistence)
+Firebase Firestore (cloud persistence + offline cache)
+    ↓
+Firestore Snapshot Listener (real-time updates)
     ↓
 Repository Flow<T> (emits changes)
     ↓
@@ -122,13 +163,21 @@ Composable (recomposes with new state)
 ```
 
 ### Example: Marking Dose as Taken
-1. User taps "Taken" button (`DoseCard.kt:172`)
+1. User taps "Taken" button in `DoseCard`
 2. `onTaken()` callback invoked
-3. `HomeViewModel.markTaken()` called (`HomeViewModel.kt`)
-4. `repository.markDose()` saves to Room
-5. Repository emits updated data via Flow
-6. ViewModel updates `StateFlow<HomeUiState>`
-7. HomeScreen recomposes with new data
+3. `HomeViewModel.markTaken()` called
+4. `repository.markDoseTaken()` writes to Firestore
+5. Firestore snapshot listener detects change
+6. Repository emits updated data via Flow
+7. ViewModel updates `StateFlow<HomeUiState>`
+8. HomeScreen recomposes with new data (< 2 seconds)
+
+### Offline-First Design
+- Firestore caches data locally for offline access
+- Writes queue locally when offline
+- Automatic sync when connection restored
+- Real-time listeners work with cached data
+- Optimistic UI updates provide immediate feedback
 
 ## Reactive UI with StateFlow
 
@@ -156,14 +205,16 @@ val uiState by viewModel.uiState.collectAsState()
 `RepositoryProvider.kt` provides singleton repository:
 ```kotlin
 object RepositoryProvider {
-    fun getRepository(): MedicationRepository
+    fun provideRepository(context: Context): FirebaseMedicationRepository
+    fun getRepository(): FirebaseMedicationRepository
+    fun getAuthManager(): FirebaseAuthManager
 }
 ```
 
 ViewModels receive repository via constructor:
 ```kotlin
 class HomeViewModel(
-    private val repository: MedicationRepository = RepositoryProvider.getRepository()
+    private val repository: FirebaseMedicationRepository = RepositoryProvider.getRepository()
 )
 ```
 
@@ -184,11 +235,11 @@ class HomeViewModel(
 - Enums: `MedicationFrequency`
 - Pure Kotlin, no Android dependencies
 
-### Data Layer (Repository + Room)
-- **Repository**: Single source of truth, exposes Flows
-- **Room**: Local persistence with SQLite
-- **DAOs**: Database queries
-- **Entities**: Room-specific data classes
+### Data Layer (Repository + Firebase)
+- **Repository**: Single source of truth, exposes Flows from Firestore listeners
+- **Firebase Firestore**: Cloud persistence with offline caching
+- **FirebaseAuthManager**: Handles authentication and offline user IDs
+- **Firestore DTOs**: Data transfer objects for serialization
 
 ## Key Architectural Decisions
 
@@ -204,11 +255,13 @@ class HomeViewModel(
 - Compose works best with single activity
 - Material 3 bottom nav integration
 
-### Why Room?
-- Type-safe database queries
-- Compile-time verification
-- Flow support for reactive updates
-- Migration support for schema changes
+### Why Firebase/Firestore?
+- Real-time cloud sync across devices
+- Built-in offline persistence and caching
+- No backend infrastructure to maintain
+- Automatic conflict resolution
+- Scalable for caregiver-patient data sharing
+- Real-time listeners for reactive updates
 
 ### Why StateFlow over LiveData?
 - Better Kotlin Coroutines integration
@@ -225,9 +278,9 @@ All async work uses Kotlin Coroutines:
 - Structured concurrency
 
 ### Dispatchers
-- **Main**: UI updates (StateFlow emissions)
-- **IO**: Room database operations (implicit)
-- **Default**: Heavy computations (not currently used)
+- **Main**: UI updates (StateFlow emissions), Firestore listeners
+- **IO**: Firestore write operations, HTTP requests (FCM)
+- **Default**: Heavy computations (QR code generation)
 
 ## Testing Strategy
 
@@ -246,6 +299,7 @@ All async work uses Kotlin Coroutines:
 ### Potential Enhancements
 - Hilt for dependency injection
 - Use cases layer for complex business logic
-- Separate domain models from entities
-- WorkManager for notifications
-- DataStore for preferences (replacing Room SettingsEntity)
+- Separate domain models from Firestore DTOs
+- Enhanced error handling and retry logic for offline scenarios
+- More comprehensive security rules for Firestore
+- Migration from anonymous auth to social login (optional)

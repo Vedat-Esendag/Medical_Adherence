@@ -35,21 +35,32 @@ The Medical Adherence app helps you:
 - Friendly, non-judgmental language throughout
 
 ## Who It's For
-Designed for users who need help staying consistent with medication schedules, especially elderly users or those managing multiple medications.
+Designed for patients who need help staying consistent with medication schedules, especially elderly users or those managing multiple medications. Also includes optional caregiver features for family members who want to help monitor adherence remotely.
 
 ## Getting Started
-1. Tap the **+ button** to add your first medication
-2. Enter medication name, dosage, and schedule
-3. Return to Home screen to see today's doses
-4. Mark doses as taken throughout the day
-5. Check Stats tab to see your weekly progress
+1. Choose your role (Patient or Caregiver)
+2. **As a Patient:**
+   - Tap the **+ button** to add your first medication
+   - Enter medication name, dosage, and schedule
+   - Mark doses as taken throughout the day
+   - Check Stats tab to see your weekly progress
+   - Optionally share your PIN with a caregiver for remote monitoring
+3. **As a Caregiver:**
+   - Scan a patient's QR code or enter their 6-digit PIN
+   - Monitor their medication adherence in real-time
+   - View their statistics and medication schedules
 
 ## Navigation
-Four main sections accessible via bottom bar:
-- **Home**: Today's doses and quick actions
-- **Medications**: Full library of all medications
+Main sections accessible via the bottom bar (varies by role):
+- **Home**: Today's doses and quick actions (Patient)
+- **Patients**: List of connected patients (Caregiver)
+- **Medications**: Full library of all medications (Patient)
 - **Stats**: Weekly adherence and trends
-- **Settings**: Font size and theme preferences
+- **Settings**: Font size, high contrast mode, and pairing options
 
-## Privacy
-All data stored locally on your device using Room database. No cloud sync or external sharing.
+## Privacy & Data Storage
+Your medication data is securely stored in Firebase Cloud Firestore:
+- **Offline support**: Works without internet, automatically syncs when back online
+- **Private by default**: Data only shared with explicitly connected caregivers via PIN/QR code
+- **No public sharing**: No social features, ads, or third-party data sharing
+- **Secure cloud backup**: Data persists across device changes and app reinstalls

@@ -68,6 +68,21 @@ Used sparingly and always with text labels:
 - **Blue bars**: Good daily adherence (also shows percentage)
 - Never rely on color alone - always paired with text/numbers
 
+### High Contrast Mode
+Available in Settings for users who need maximum contrast:
+- Pure black background (#000000)
+- Pure white text for all content
+- Eliminates subtle colors and grays
+- Easier to read in bright sunlight or for low vision users
+- Toggle on/off anytime in Settings without app restart
+- Applies consistently across all screens
+
+**How to Enable**:
+1. Go to Settings screen
+2. Find "High Contrast Mode" toggle
+3. Switch to ON
+4. All screens immediately update to high contrast
+
 ## Visual Design
 
 ### Card-Based Layout
@@ -199,9 +214,9 @@ Works with Android's TalkBack screen reader:
 
 ### Planned Features
 - Voice input for adding medications
-- Medication reminder notifications
-- High contrast mode option
-- Larger font scale options (1.3x, 1.5x)
+- Enhanced medication reminder notifications
+- Additional font scale options (1.3x, 1.5x beyond current 1.15x)
+- Text-to-speech for dose reminders
 
 ### Under Consideration
 - Text-to-speech for dose reminders

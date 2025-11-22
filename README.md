@@ -48,6 +48,8 @@ app/
    - Android Studio Hedgehog (2023.1.1) or later
    - Android SDK 29+ (minSdk: 29, targetSdk: 36)
    - Kotlin 2.0.21
+   - Node.js 18+
+   - npm (comes with Node.js)
 
 2. **Clone & Open**
    ```bash
@@ -62,7 +64,23 @@ app/
    - Click **Run** (green play button) or press `Shift + F10`
    - The app will install and launch
 
-4. **Explore**
+4. **Local FCM Server Setup (Required for Push Notifications)**
+   ```bash
+   # Navigate to local server directory
+   cd local-fcm-server
+   
+   # Install dependencies
+   npm install
+   
+   # Start the server (runs on port 3000)
+   npm start
+   ```
+   
+   **Expected output**: `Server listening on port 3000`
+   
+   **Note**: Keep this terminal running while testing push notifications.
+
+5. **Explore**
    - Home screen shows pre-seeded medications for Maria and Ahmed
    - Try marking doses as taken/missed
    - Add your own medication via the FAB (+) button

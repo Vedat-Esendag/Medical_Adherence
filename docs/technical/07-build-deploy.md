@@ -1,7 +1,7 @@
 # Build & Deployment Guide
 
 ## TL;DR
-Standard Android Gradle build. Debug builds for development, release builds for production. Room uses KSP for annotation processing.
+Standard Android Gradle build with Firebase integration. Debug builds for development, release builds for production. Firebase requires google-services.json and Google Services plugin.
 
 ## Prerequisites
 
@@ -112,6 +112,38 @@ Builds both debug and release APKs.
 adb shell am start -n com.example.medicaladherence/.MainActivity
 ```
 
+## Local FCM Server
+
+### Purpose
+The `local-fcm-server/` directory contains an Express.js server that handles FCM push notifications during development. Required for caregiver-to-patient notifications.
+
+### Setup (First Time)
+```bash
+cd local-fcm-server
+npm install
+```
+
+### Running the Server
+```bash
+cd local-fcm-server
+npm start
+```
+
+Expected output:
+```
+Server listening on port 3000
+```
+
+### How It Works
+- App sends notification request to `http://10.0.2.2:3000/sendNotification` (emulator localhost)
+- Server uses Firebase Admin SDK to send FCM notification
+- Patient device receives push notification
+
+### Troubleshooting
+- **Port 3000 in use**: Kill the existing process or change port in `index.js`
+- **Firebase Admin SDK error**: Ensure service account JSON file exists in `local-fcm-server/`
+- **Notification not received**: Verify server is running and emulator can reach `10.0.2.2:3000`
+
 ## Testing
 
 ### Unit Tests
@@ -135,20 +167,20 @@ Runs tests in `app/src/androidTest/` on connected device.
 
 ## Code Generation
 
-### Room with KSP
-Room entities/DAOs use KSP for code generation.
+### Firebase Configuration Processing
+Firebase uses the Google Services plugin to process `google-services.json`.
 
-**Trigger Generation**:
-```bash
-./gradlew kspDebugKotlin
-```
+**Automatic Processing**:
+- Runs during Gradle build automatically
+- No manual generation needed
+- Processes during app build phase
 
-**Generated Files**: `app/build/generated/ksp/debug/kotlin/`
+**Generated Files**: `app/build/generated/res/google-services/`
 
-**Auto-Generated**:
-- DAO implementations
-- Database implementations
-- Type converter references
+**What's Generated**:
+- Firebase project configuration values
+- API keys and project IDs
+- FCM sender ID and credentials
 
 ### Compose Compiler
 Kotlin Compose plugin generates:
@@ -183,9 +215,10 @@ Set `isMinifyEnabled = true` for smaller APKs.
 
 Common rules needed:
 ```proguard
-# Room
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
+# Firebase
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
 
 # Kotlin
 -keep class kotlin.** { *; }
@@ -230,10 +263,10 @@ android {
 ## Dependencies Management
 
 ### Update Dependencies
-1. Edit `gradle/libs.versions.toml`
-2. Update Room version in `app/build.gradle.kts`
+1. Edit `gradle/libs.versions.toml` for AndroidX libraries
+2. Update Firebase BOM version in `app/build.gradle.kts`
 3. Sync Gradle
-4. Test thoroughly
+4. Test thoroughly, especially Firestore integration
 
 **Check for Updates**:
 ```bash
@@ -279,14 +312,8 @@ org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
 - Invalidate Caches: File → Invalidate Caches / Restart
 - Delete `.gradle` folder and resync
 
-### KSP Build Errors
-```bash
-./gradlew clean
-./gradlew kspDebugKotlin
-```
-
-### Room Schema Errors
-Delete app data or uninstall:
+### Firestore Connection Errors
+Check internet and Firebase configuration:
 ```bash
 adb uninstall com.example.medicaladherence
 ```
@@ -380,27 +407,27 @@ defaultConfig {
 - Upload to Google Play Console
 - Or distribute APK directly (sideloading)
 
-## Database Migrations
+## Firestore Schema Evolution
 
 ### Schema Changes
-When changing Room entities:
-1. Increment database version in `AppDatabase.kt`
-2. Add migration:
+When changing Firestore document structure:
+1. Add new fields with default values in DTOs:
 ```kotlin
-val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        // ALTER TABLE ...
-    }
-}
+data class FirestoreMedication(
+    // existing fields...
+    val newField: String = "default"  // NEW
+)
 ```
-3. Add to database builder:
+2. Update mapping functions to handle both old and new schemas:
 ```kotlin
-Room.databaseBuilder(...)
-    .addMigrations(MIGRATION_1_2)
-    .build()
+fun FirestoreMedication.toMedication() = Medication(
+    // existing mappings...
+    newField = newField  // Uses default for old documents
+)
 ```
+3. Deploy app update - old documents work automatically
 
-**Current**: Using `.fallbackToDestructiveMigration()` (data loss on schema change)
+**No migrations needed**: Firestore handles missing fields gracefully with defaults
 
 ## Useful Gradle Tasks
 

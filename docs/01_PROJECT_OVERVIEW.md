@@ -137,7 +137,7 @@ The project explores three different methods for sending push notifications (Dir
 ### User Success
 - Patient can add medication and track first dose within **2 minutes**
 - Caregiver can pair with patient and send notification within **1 minute**
-- App works **100% offline** for all core features
+- App works **100% offline for patient core features** (tracking doses & viewing stats). Caregiver sync & pairing require internet.
 - Adherence statistics update in **real-time** (< 2 seconds)
 
 ### Technical Success

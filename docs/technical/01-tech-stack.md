@@ -1,7 +1,7 @@
 # Tech Stack Reference
 
 ## TL;DR
-Modern Android stack: Kotlin 2.0.21, Jetpack Compose, Material 3, Room 2.6.1, Navigation Compose 2.8.5, Coroutines 1.9.0, targeting Android 15+ (SDK 36).
+Modern Android stack: Kotlin 2.0.21, Jetpack Compose, Material 3, Firebase/Firestore, Navigation Compose 2.8.5, Coroutines 1.9.0, WorkManager 2.9.0, targeting Android 15+ (SDK 36).
 
 ## Core Technologies
 
@@ -60,34 +60,42 @@ Location: `gradle/libs.versions.toml:11`
 
 ## Data Persistence
 
-### Room Database
-- **Version**: 2.6.1
+### Firebase Firestore
+- **Firebase BOM**: 32.7.0 (Bill of Materials for version management)
 - **Components**:
-  - `room-runtime`: Core library
-  - `room-ktx`: Kotlin extensions + Coroutines
-  - `room-compiler`: Annotation processor (KSP)
+  - `firebase-firestore-ktx`: Cloud NoSQL database with offline support
+  - `firebase-auth-ktx`: Anonymous authentication
+  - `firebase-messaging`: FCM push notifications (23.4.0)
 
-Location: `app/build.gradle.kts:65-67`
+Location: `app/build.gradle.kts`
 
-### Type Converters
-- Custom converters for `List<String>`, `List<Int>`
-- Enum support for `MedicationFrequency`
+### Firestore Features
+- Real-time listeners for reactive data updates
+- Automatic offline persistence and caching
+- Cloud sync across devices
+- Subcollection support for hierarchical data
+- Built-in conflict resolution
 
-Location: `app/src/main/java/com/example/medicaladherence/data/local/Converters.kt`
+### Coroutines Support
+- **kotlinx-coroutines-play-services**: 1.7.3
+- Enables `await()` extension on Firebase Tasks
+- Seamless integration with suspend functions
+
+Location: `app/build.gradle.kts`
 
 ## Asynchronous Programming
 
 ### Kotlin Coroutines
 - **Version**: 1.9.0
 - **Library**: `kotlinx-coroutines-android`
-- **Usage**: All async operations (Room queries, timers, etc.)
+- **Usage**: All async operations (Firestore queries, HTTP requests, timers, etc.)
 
 Location: `gradle/libs.versions.toml:13`
 
 ### Flow
 - `StateFlow` for reactive UI state
-- Room DAOs return `Flow<T>` for reactive queries
-- `collectAsState()` in Compose
+- Firestore snapshot listeners converted to `Flow<T>` via `callbackFlow`
+- `collectAsState()` in Compose for reactive UI updates
 
 ## Testing Libraries
 
@@ -100,7 +108,69 @@ Location: `gradle/libs.versions.toml:13`
 - **Espresso Core**: 3.7.0
 - **Compose UI Test**: via BOM
 
-Location: `gradle/libs.versions.toml:5-7`, `app/build.gradle.kts:69-75`
+Location: `gradle/libs.versions.toml:5-7`, `app/build.gradle.kts`
+
+## Background Tasks & Notifications
+
+### WorkManager
+- **Version**: 2.9.0
+- **Library**: `androidx.work:work-runtime-ktx`
+- **Usage**: Scheduled local medication reminders
+- **Features**:
+  - Guaranteed execution even if app is closed
+  - Flexible scheduling (one-time, periodic)
+  - Battery-efficient background processing
+  - Survives app restarts and device reboots
+
+Location: `app/build.gradle.kts`
+
+### Firebase Cloud Messaging (FCM)
+- **Version**: 23.4.0 (via Firebase BOM)
+- **Usage**: Push notifications from caregivers to patients
+- **Features**:
+  - Real-time message delivery
+  - Works even when app is in background
+  - Custom notification payloads
+  - Token-based targeting
+
+Location: `app/src/main/java/com/example/medicaladherence/fcm/MyFirebaseMessagingService.kt`
+
+## QR Code Libraries
+
+### ZXing (Zebra Crossing)
+- **Core**: com.google.zxing:core:3.5.2
+- **Android Embedded**: com.journeyapps:zxing-android-embedded:4.3.0
+- **Usage**: 
+  - QR code generation for patient pairing codes
+  - QR code scanning in caregiver app
+- **Features**:
+  - Fast QR code encoding/decoding
+  - Camera integration
+  - Customizable QR code appearance
+
+Location: `app/build.gradle.kts`
+
+## Networking & Serialization
+
+### OkHttp
+- **Version**: 4.12.0
+- **Library**: `com.squareup.okhttp3:okhttp`
+- **Usage**: HTTP requests to local FCM server (development)
+- **Features**:
+  - Efficient HTTP client
+  - Connection pooling
+  - Automatic retries
+
+### Gson
+- **Version**: 2.10.1
+- **Library**: `com.google.code.gson:gson`
+- **Usage**: JSON serialization for QR code data and API payloads
+- **Features**:
+  - Fast JSON parsing
+  - Type-safe deserialization
+  - Custom type adapters
+
+Location: `app/build.gradle.kts`
 
 ## Development Tools
 
@@ -111,25 +181,32 @@ Location: `gradle/libs.versions.toml:5-7`, `app/build.gradle.kts:69-75`
 - Layout inspector for Compose
 
 ### Kotlin Symbol Processing (KSP)
-- Replaces KAPT for Room
-- Faster annotation processing
-- Better IDE support
+- Used for annotation processing where needed
+- Faster than KAPT
+- Better IDE support and build performance
 
-Location: `build.gradle.kts:6`, `app/build.gradle.kts:5`
+Location: `build.gradle.kts`, `app/build.gradle.kts`
 
 ## Dependencies Overview
 
 ### Version Catalog
-All dependencies managed in `gradle/libs.versions.toml`:
+Core dependencies managed in `gradle/libs.versions.toml`:
 
 ```toml
 [versions]
 kotlin = "2.0.21"
 compose-bom = "2024.09.00"
-room = "2.6.1" (in app/build.gradle.kts)
 navigation = "2.8.5"
 coroutines = "1.9.0"
+lifecycle = "2.9.4"
 ```
+
+Additional versions specified directly in `app/build.gradle.kts`:
+- Firebase BOM: 32.7.0
+- WorkManager: 2.9.0
+- ZXing: 3.5.2 / 4.3.0
+- Gson: 2.10.1
+- OkHttp: 4.12.0
 
 ### Key Libraries
 ```kotlin
@@ -137,21 +214,35 @@ coroutines = "1.9.0"
 implementation(platform(libs.androidx.compose.bom))
 implementation(libs.androidx.compose.material3)
 implementation(libs.androidx.navigation.compose)
+implementation("androidx.compose.material:material-icons-extended")
 
 // Architecture
 implementation(libs.androidx.lifecycle.viewmodel.compose)
 implementation(libs.androidx.lifecycle.runtime.compose)
 
-// Data
-implementation("androidx.room:room-runtime:2.6.1")
-implementation("androidx.room:room-ktx:2.6.1")
-ksp("androidx.room:room-compiler:2.6.1")
+// Firebase
+implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+implementation("com.google.firebase:firebase-firestore-ktx")
+implementation("com.google.firebase:firebase-auth-ktx")
+implementation("com.google.firebase:firebase-messaging")
 
-// Async
+// Coroutines
 implementation(libs.kotlinx.coroutines.android)
+implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services")
+
+// Background Tasks
+implementation("androidx.work:work-runtime-ktx")
+
+// QR Codes
+implementation("com.google.zxing:core")
+implementation("com.journeyapps:zxing-android-embedded")
+
+// Networking
+implementation("com.squareup.okhttp3:okhttp")
+implementation("com.google.code.gson:gson")
 ```
 
-Location: `app/build.gradle.kts:43-67`
+Location: `app/build.gradle.kts`
 
 ## Build Features
 
@@ -179,10 +270,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services")  // Firebase integration
 }
 ```
 
-Location: `app/build.gradle.kts:1-6`
+Location: `app/build.gradle.kts`
+
+### Firebase Configuration
+- **google-services.json**: Firebase project configuration file
+- **google-services plugin**: Processes Firebase configuration at build time
+- **Location**: `app/google-services.json`
 
 ## Version Management
 
@@ -223,32 +320,47 @@ Provides access to:
 
 ## External Dependencies
 
-### None Currently
-- No third-party libraries (Retrofit, Glide, etc.)
-- Pure Jetpack stack
-- No analytics or crash reporting
-- No backend integration
+### Firebase Suite
+- Firebase BOM for version management
+- Firestore for cloud database
+- Firebase Auth for anonymous authentication
+- FCM for push notifications
+- Minimal third-party exposure (Google-owned)
+
+### Supporting Libraries
+- ZXing for QR code functionality
+- OkHttp for HTTP networking
+- Gson for JSON serialization
+- WorkManager for background tasks (AndroidX)
+
+### What's NOT Included
+- No analytics or tracking libraries
+- No crash reporting (Crashlytics not enabled)
+- No ad networks
+- No social media SDKs
+- No image loading libraries (Glide, Coil)
 
 This keeps the app:
-- Lightweight
-- Privacy-focused (local only)
-- Easy to maintain
-- Minimal attack surface
+- Privacy-focused (no user tracking)
+- Focused on core functionality
+- Maintainable with minimal dependencies
+- Secure with trusted libraries only
 
 ## Upgrade Path
 
 ### Staying Current
 To update dependencies:
 1. Update version catalog: `gradle/libs.versions.toml`
-2. Update Room version in `app/build.gradle.kts`
+2. Update Firebase BOM and other versions in `app/build.gradle.kts`
 3. Run `./gradlew --refresh-dependencies`
-4. Test thoroughly
+4. Test thoroughly, especially Firestore interactions
 
 ### Breaking Changes to Watch
 - Kotlin version updates (may require code changes)
-- Compose BOM updates (Material 3 changes)
-- Room migrations (schema changes)
+- Compose BOM updates (Material 3 API changes)
+- Firebase BOM updates (potential API changes across Firebase products)
 - Navigation Compose API changes
+- Firestore schema changes (handle gracefully with defaults)
 
 ## Build Variants
 
@@ -275,6 +387,7 @@ Location: `app/build.gradle.kts:22-29`
 - R8 available (currently disabled)
 
 ### Runtime
-- Coroutines for efficient async
+- Coroutines for efficient async operations
 - Flow for backpressure handling
-- Room caching and query optimization
+- Firestore offline persistence and caching
+- WorkManager's intelligent job scheduling

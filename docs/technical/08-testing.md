@@ -1,7 +1,7 @@
 # Testing Strategy
 
 ## TL;DR
-JUnit for unit tests, Espresso + Compose UI Test for instrumented tests. Test ViewModels, repositories, and key UI flows. Room in-memory database for data layer tests.
+JUnit for unit tests, Espresso + Compose UI Test for instrumented tests. Test ViewModels with fake repositories, use Firestore emulator for integration tests, and test key UI flows with Compose UI Test.
 
 ## Testing Stack
 
@@ -28,7 +28,7 @@ app/src/
 │       │   ├── HomeViewModelTest.kt
 │       │   └── StatsViewModelTest.kt
 │       ├── repository/
-│       │   └── MedicationRepositoryTest.kt
+│       │   └── FirebaseMedicationRepositoryTest.kt
 │       └── model/
 │           └── MedicationTest.kt
 │
@@ -37,8 +37,8 @@ app/src/
         ├── ui/
         │   ├── HomeScreenTest.kt
         │   └── AddMedicationScreenTest.kt
-        └── database/
-            └── MedicationDaoTest.kt
+        └── integration/
+            └── FirestoreIntegrationTest.kt
 ```
 
 ## Unit Testing
@@ -94,62 +94,66 @@ class HomeViewModelTest {
 ```
 
 ### Repository Tests
-Test data operations and transformations.
+Test data operations using fake repositories (preferred for unit tests).
 
-**Example**: `MedicationRepositoryTest.kt`
+**Example**: `FirebaseMedicationRepositoryTest.kt` using fake implementation
 ```kotlin
-class MedicationRepositoryTest {
+class FirebaseMedicationRepositoryTest {
 
-    private lateinit var database: AppDatabase
-    private lateinit var repository: MedicationRepository
+    private lateinit var fakeRepository: FakeFirebaseMedicationRepository
 
     @Before
     fun setup() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        database = Room.inMemoryDatabaseBuilder(
-            context,
-            AppDatabase::class.java
-        ).build()
-        repository = MedicationRepository(database)
-    }
-
-    @After
-    fun teardown() {
-        database.close()
+        fakeRepository = FakeFirebaseMedicationRepository()
     }
 
     @Test
-    fun `addMedication saves to database`() = runTest {
+    fun `addMedication emits updated list`() = runTest {
         // Given
         val medication = Medication(
             id = "test-1",
             name = "Aspirin",
             dosage = "81 mg",
-            times = listOf("07:00")
+            times = listOf("07:00"),
+            frequency = MedicationFrequency.Daily
         )
 
         // When
-        repository.addOrUpdateMedication(medication)
+        fakeRepository.addOrUpdateMedication(medication)
 
         // Then
-        val saved = repository.getMedicationById("test-1")
-        assertEquals("Aspirin", saved?.name)
+        val medications = fakeRepository.getMedications().first()
+        assertEquals(1, medications.size)
+        assertEquals("Aspirin", medications[0].name)
     }
 
     @Test
-    fun `deleteMedication removes medication and events`() = runTest {
+    fun `deleteMedication removes from list`() = runTest {
         // Given
         val medication = createTestMedication("med-1")
-        repository.addOrUpdateMedication(medication)
-        repository.markDose("med-1", LocalDate.now(), "07:00", true)
+        fakeRepository.addOrUpdateMedication(medication)
 
         // When
-        repository.deleteMedication("med-1")
+        fakeRepository.deleteMedication("med-1")
 
         // Then
-        assertNull(repository.getMedicationById("med-1"))
-        val events = repository.getTodayDoses()
-        assertTrue(events.none { it.first.id == "med-1" })
+        val medications = fakeRepository.getMedications().first()
+        assertTrue(medications.isEmpty())
+    }
+
+    @Test
+    fun `markDoseTaken updates dose event`() = runTest {
+        // Given
+        val medId = "med-1"
+        val date = LocalDate.now()
+        val time = "07:00"
+
+        // When
+        fakeRepository.markDoseTaken(medId, date, time)
+
+        // Then
+        val events = fakeRepository.getDoseEvents(date, date).first()
+        assertTrue(events.any { it.medId == medId && it.taken })
     }
 }
 ```
@@ -177,65 +181,90 @@ class MedicationTest {
 
 ## Instrumented Testing
 
-### DAO Tests
-Test database operations on real SQLite.
+### Firestore Integration Tests
+Test Firestore operations using the Firebase emulator (optional - requires emulator setup).
 
-**Example**: `MedicationDaoTest.kt`
+**Example**: `FirestoreIntegrationTest.kt`
 ```kotlin
 @RunWith(AndroidJUnit4::class)
-class MedicationDaoTest {
+class FirestoreIntegrationTest {
 
-    private lateinit var database: AppDatabase
-    private lateinit var dao: MedicationDao
+    private lateinit var firestore: FirebaseFirestore
+    private lateinit var repository: FirebaseMedicationRepository
+    private val testUserId = "test_user_${UUID.randomUUID()}"
 
     @Before
     fun setup() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        database = Room.inMemoryDatabaseBuilder(
-            context,
-            AppDatabase::class.java
-        ).build()
-        dao = database.medicationDao()
+        // OPTIONAL: Use Firestore emulator for local testing
+        // firestore = FirebaseFirestore.getInstance()
+        // firestore.useEmulator("10.0.2.2", 8080)
+        
+        // For unit tests, prefer fake repository instead
+        val fakeAuth = object : FirebaseAuthManager {
+            override suspend fun getCurrentUserId() = testUserId
+        }
+        
+        // Use actual Firestore or emulator
+        firestore = FirebaseFirestore.getInstance()
+        repository = FirebaseMedicationRepository(firestore, fakeAuth)
     }
 
     @After
-    fun teardown() {
-        database.close()
+    fun teardown() = runTest {
+        // Clean up test data
+        firestore
+            .collection("users")
+            .document(testUserId)
+            .delete()
+            .await()
     }
 
     @Test
-    fun insertAndGetMedication() = runTest {
+    fun addAndRetrieveMedication() = runTest {
         // Given
-        val entity = MedicationEntity(
+        val medication = Medication(
             id = "test-1",
             name = "Amlodipine",
             dosage = "5 mg",
             times = listOf("07:00"),
-            notes = null,
-            frequency = MedicationFrequency.Daily,
-            specificDays = emptyList()
+            frequency = MedicationFrequency.Daily
         )
 
         // When
-        dao.insertMedication(entity)
-        val retrieved = dao.getMedicationById("test-1")
+        repository.addOrUpdateMedication(medication)
+        delay(500) // Wait for Firestore write
 
         // Then
-        assertNotNull(retrieved)
-        assertEquals("Amlodipine", retrieved?.name)
+        val medications = repository.getMedications().first()
+        assertTrue(medications.any { it.name == "Amlodipine" })
     }
 
     @Test
-    fun getAllMedicationsReturnsFlow() = runTest {
+    fun markDoseTakenPersists() = runTest {
+        // Given
+        val medication = createTestMedication("med-1")
+        repository.addOrUpdateMedication(medication)
+        delay(500)
+
         // When
-        val flow = dao.getAllMedications()
-        val medications = flow.first()
+        repository.markDoseTaken("med-1", LocalDate.now(), "07:00")
+        delay(500)
 
         // Then
-        assertTrue(medications.isEmpty())
+        val events = repository.getDoseEvents(
+            LocalDate.now(),
+            LocalDate.now()
+        ).first()
+        assertTrue(events.any { it.medId == "med-1" && it.taken })
     }
 }
 ```
+
+**Note**: For most tests, prefer fake repositories over real Firestore to avoid:
+- Network dependency
+- Slower test execution  
+- Emulator setup complexity
+- Potential flakiness
 
 ### Compose UI Tests
 Test screen behavior and interactions.
@@ -341,32 +370,57 @@ fun fabNavigatesToAddScreen() {
 
 ## Test Doubles
 
-### Fake Repository
-For ViewModel tests.
+### Fake Firebase Repository
+For ViewModel tests - simulates Firestore behavior without network calls.
 
 ```kotlin
-class FakeMedicationRepository : MedicationRepository {
+class FakeFirebaseMedicationRepository : FirebaseMedicationRepository {
 
+    private val medications = mutableListOf<Medication>()
+    private val doseEvents = mutableListOf<DoseEvent>()
     private val medicationsFlow = MutableStateFlow<List<Medication>>(emptyList())
+    
     val markedDoses = mutableListOf<Pair<String, String>>()
 
-    override val medications: Flow<List<Medication>> = medicationsFlow
+    override fun getMedications(): Flow<List<Medication>> = medicationsFlow
 
-    override suspend fun markDose(
+    override suspend fun addOrUpdateMedication(medication: Medication) {
+        medications.removeAll { it.id == medication.id }
+        medications.add(medication)
+        medicationsFlow.value = medications.toList()
+    }
+
+    override suspend fun deleteMedication(medId: String) {
+        medications.removeAll { it.id == medId }
+        doseEvents.removeAll { it.medId == medId }
+        medicationsFlow.value = medications.toList()
+    }
+
+    override suspend fun markDoseTaken(
         medId: String,
         date: LocalDate,
-        time: String,
-        taken: Boolean
+        time: String
     ) {
         markedDoses.add(medId to time)
+        doseEvents.add(DoseEvent(medId, date, time, taken = true))
+    }
+
+    override suspend fun markDoseMissed(
+        medId: String,
+        date: LocalDate,
+        time: String
+    ) {
+        doseEvents.add(DoseEvent(medId, date, time, taken = false))
+    }
+
+    override fun getDoseEvents(startDate: LocalDate, endDate: LocalDate): Flow<List<DoseEvent>> {
+        return flow { emit(doseEvents.filter { it.date in startDate..endDate }) }
     }
 
     fun setMedications(meds: List<Medication>) {
-        medicationsFlow.value = meds
-    }
-
-    fun setAdherence(percentage: Int) {
-        // Mock adherence calculation
+        medications.clear()
+        medications.addAll(meds)
+        medicationsFlow.value = medications.toList()
     }
 }
 ```
@@ -438,10 +492,11 @@ fun `test with controlled time`() = runTest {
 4. **AAA Pattern**: Arrange, Act, Assert
 
 ### Instrumented Tests
-1. **Use in-memory database**: Faster than real DB
-2. **Test real Android behavior**: Lifecycle, View rendering
-3. **Compose test rules**: `createComposeRule()`
-4. **Content descriptions**: Add for testability
+1. **Prefer fake repositories**: Faster and more reliable than Firestore emulator
+2. **Use emulator sparingly**: Only for integration tests that need real Firestore
+3. **Test real Android behavior**: Lifecycle, View rendering
+4. **Compose test rules**: `createComposeRule()`
+5. **Content descriptions**: Add for testability
 
 ### General
 1. **Test behavior, not implementation**: Don't test private methods
@@ -491,8 +546,8 @@ Coverage report: `app/build/reports/coverage/`
 
 ### Target Coverage
 - **ViewModels**: 80%+ (core business logic)
-- **Repository**: 80%+ (data operations)
-- **DAOs**: 70%+ (database queries)
+- **Repository**: 80%+ (data operations with fake implementations)
+- **Firestore Integration**: 50%+ (key data flows only, use fake repos when possible)
 - **UI**: 60%+ (key user flows)
 
 ### Not Everything Needs Tests

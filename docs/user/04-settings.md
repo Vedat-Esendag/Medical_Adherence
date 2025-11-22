@@ -40,12 +40,47 @@ Font size affects:
 - Button dimensions
 - Spacing and padding
 
+## High Contrast Mode
+
+### Maximum Readability
+For users who need the strongest possible contrast:
+
+**What It Does**
+- Pure black background (#000000)
+- Pure white text for all content
+- Eliminates all subtle colors and grays
+- Overrides system theme settings
+- Easier to read in bright sunlight
+- Helpful for low vision users
+
+**How to Enable**
+1. Go to Settings screen
+2. Find "High Contrast Mode" toggle under accessibility options
+3. Switch to ON
+4. All screens immediately update with high contrast colors
+5. Toggle OFF to return to normal theme
+
+**What Changes**
+- All backgrounds become black
+- All text becomes white
+- Icons remain visible with white coloring
+- Cards and sections clearly outlined
+- Buttons maintain visibility with high contrast borders
+
+**When to Use**
+- Outdoors in bright sunlight
+- For users with low vision
+- When maximum contrast is needed
+- For better focus and reduced eye strain
+- Any time standard colors aren't sufficient
+
 ## Theme
 
 ### System Theme
-- App follows your device's light/dark mode setting
+- App follows your device's light/dark mode setting (unless High Contrast Mode is enabled)
 - Automatically switches when your phone theme changes
 - No manual toggle needed
+- Overridden by High Contrast Mode when enabled
 
 ### Light Mode
 - Clean white backgrounds
@@ -111,9 +146,10 @@ Not currently configurable:
 ### How to Reset
 To return to default settings:
 1. Select "Normal" font size
-2. Ensure device is in light mode (if preferred)
+2. Turn OFF High Contrast Mode
+3. Ensure device is in light mode (if preferred)
 
-All settings stored locally - no cloud sync.
+Settings sync with your account via Firebase - persist across devices and app reinstalls.
 
 ## Tips
 

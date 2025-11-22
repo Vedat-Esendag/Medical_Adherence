@@ -26,12 +26,12 @@ For developers, architects, and contributors:
 ### Architecture & Design
 1. [**Architecture**](technical/00-architecture.md) - MVVM pattern, project structure, data flow
 2. [**Tech Stack**](technical/01-tech-stack.md) - Dependencies, versions, build tools
-3. [**Data Models**](technical/02-data-models.md) - Medication, DoseEvent, Room entities
+3. [**Data Models**](technical/02-data-models.md) - Medication, DoseEvent, Firestore DTOs
 4. [**Navigation**](technical/03-navigation.md) - Compose Navigation, routes, flows
 5. [**State Management**](technical/04-state-management.md) - StateFlow, ViewModels, reactive UI
 
 ### Implementation Details
-6. [**Database**](technical/05-database.md) - Room setup, DAOs, queries, Flow
+6. [**Database**](technical/05-database.md) - Firestore setup, collections, queries, real-time listeners
 7. [**UI Components**](technical/06-ui-components.md) - Composables, Material 3, theming
 8. [**Build & Deploy**](technical/07-build-deploy.md) - Gradle, APK builds, signing
 
@@ -94,7 +94,7 @@ docs/
 
 ### Technical Topics
 - **StateFlow pattern** → technical/04-state-management.md
-- **Room type converters** → technical/05-database.md, technical/02-data-models.md
+- **Firestore serialization** → technical/05-database.md, technical/02-data-models.md
 - **Compose components** → technical/06-ui-components.md
 - **ViewModel lifecycle** → technical/04-state-management.md
 - **Navigation arguments** → technical/03-navigation.md
