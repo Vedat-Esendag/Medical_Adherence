@@ -23,3 +23,7 @@ functions/medical-adherence-22fd2-firebase-adminsdk-fbsvc-9c82456821.json
 .kotlin/
 *.log
 firebase-debug.log
+*.hprof
+
+# OS files
+Thumbs.db
