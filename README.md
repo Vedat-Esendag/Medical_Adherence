@@ -32,7 +32,7 @@ A clean, minimal Android app prototype for tracking medication adherence. Built 
 app/
 ├── data/
 │   ├── model/           # Medication, DoseEvent data classes
-│   └── repo/            # InMemoryMedicationRepository
+│   └── repository/      # FirebaseMedicationRepository, RepositoryProvider
 ├── viewmodel/           # HomeViewModel, AddMedicationViewModel, etc.
 ├── ui/
 │   ├── screens/         # HomeScreen, StatsScreen, SettingsScreen, etc.

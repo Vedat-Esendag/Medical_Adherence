@@ -30,7 +30,6 @@ This comprehensive guide will help you deliver a professional 8-10 minute demons
 - Patient: Pixel 8 API 34 (or similar)
 - Caregiver: Pixel 7 API 33 (or similar)
 - Run emulators side-by-side
-- Ensure local FCM server is running
 
 **Option 3: One Device + One Emulator**
 - Physical device for Patient (better for showing real notifications)
@@ -43,13 +42,6 @@ This comprehensive guide will help you deliver a professional 8-10 minute demons
 - [ ] Install app on both devices
 - [ ] Clear all app data (Settings → Apps → Medical Adherence → Storage → Clear Data)
 - [ ] Ensure internet connectivity
-- [ ] If using emulators, start local FCM server:
-  ```bash
-  cd local-fcm-server
-  npm install
-  node server.js
-  # Server should be running on http://localhost:3000
-  ```
 - [ ] Charge devices to 100% (nothing worse than dying mid-demo)
 - [ ] Close unnecessary apps
 - [ ] Enable "Do Not Disturb" on devices (to avoid interruptions)
