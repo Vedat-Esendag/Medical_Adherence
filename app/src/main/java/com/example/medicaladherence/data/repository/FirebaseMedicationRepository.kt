@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class FirebaseMedicationRepository(
@@ -204,19 +205,44 @@ class FirebaseMedicationRepository(
         }
     }
 
+    /**
+     * Determines if a medication should be scheduled for a given date based on its frequency
+     */
+    private fun isMedicationScheduledForToday(medication: Medication, date: LocalDate): Boolean {
+        return when (medication.frequency) {
+            MedicationFrequency.Daily -> true
+
+            MedicationFrequency.SpecificDays, MedicationFrequency.Weekly -> {
+                val dayOfWeek = date.dayOfWeek.value // 1=Mon, 7=Sun
+                medication.specificDays.contains(dayOfWeek)
+            }
+
+            MedicationFrequency.EveryXDays -> {
+                val intervalDays = medication.intervalDays ?: return false
+                val startDate = medication.startDate?.let { LocalDate.parse(it) } ?: return false
+                val daysSinceStart = ChronoUnit.DAYS.between(startDate, date)
+                daysSinceStart % intervalDays == 0L
+            }
+
+            MedicationFrequency.AsNeeded -> false // Don't show in scheduled list
+        }
+    }
+
     suspend fun getTodayDoses(): List<Triple<Medication, String, Boolean?>> {
         val today = LocalDate.now()
         val medicationsList = medications.first()
         val todayEvents = getDoseEvents(today, today)
 
-        return medicationsList.flatMap { med ->
-            med.times.map { time ->
-                val event = todayEvents.find { it.medId == med.id && it.time == time }
-                Triple(med, time, event?.taken)
+        return medicationsList
+            .filter { isMedicationScheduledForToday(it, today) } // Filter by frequency
+            .flatMap { med ->
+                med.times.map { time ->
+                    val event = todayEvents.find { it.medId == med.id && it.time == time }
+                    Triple(med, time, event?.taken)
+                }
+            }.sortedBy { (_, time, _) ->
+                LocalTime.parse(time)
             }
-        }.sortedBy { (_, time, _) ->
-            LocalTime.parse(time)
-        }
     }
 
     suspend fun getTodayDosesForPatientByPin(pin: String): List<Triple<Medication, String, Boolean?>> {
@@ -224,14 +250,16 @@ class FirebaseMedicationRepository(
         val medicationsList = getMedicationsForPatientByPin(pin).first()
         val todayEvents = getDoseEventsForPatientByPin(pin, today, today)
 
-        return medicationsList.flatMap { med ->
-            med.times.map { time ->
-                val event = todayEvents.find { it.medId == med.id && it.time == time }
-                Triple(med, time, event?.taken)
+        return medicationsList
+            .filter { isMedicationScheduledForToday(it, today) } // Filter by frequency
+            .flatMap { med ->
+                med.times.map { time ->
+                    val event = todayEvents.find { it.medId == med.id && it.time == time }
+                    Triple(med, time, event?.taken)
+                }
+            }.sortedBy { (_, time, _) ->
+                LocalTime.parse(time)
             }
-        }.sortedBy { (_, time, _) ->
-            LocalTime.parse(time)
-        }
     }
 
     // ========== STATISTICS ==========
@@ -457,15 +485,7 @@ class FirebaseMedicationRepository(
 
         // Convert to export format
         val medExports = medications.map { med ->
-            MedicationExport(
-                id = med.id,
-                name = med.name,
-                dosage = med.dosage,
-                times = med.times,
-                notes = med.notes,
-                frequency = med.frequency.name,
-                specificDays = med.specificDays
-            )
+            MedicationExport.fromMedication(med)
         }
 
         val eventExports = doseEvents.map { event ->
@@ -528,7 +548,9 @@ class FirebaseMedicationRepository(
                     times = med.times,
                     notes = med.notes,
                     frequency = med.frequency,
-                    specificDays = med.specificDays
+                    specificDays = med.specificDays,
+                    intervalDays = med.intervalDays,
+                    startDate = med.startDate
                 )
             }
 

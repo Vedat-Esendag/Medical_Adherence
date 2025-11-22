@@ -58,7 +58,9 @@ data class FirestoreMedication(
     val times: List<String> = emptyList(),
     val notes: String? = null,
     val frequency: String = "Daily",
-    val specificDays: List<Int> = emptyList()
+    val specificDays: List<Int> = emptyList(),
+    val intervalDays: Int? = null,
+    val startDate: String? = null  // ISO format: yyyy-MM-dd
 ) {
     fun toMedication(): Medication = Medication(
         id = id,
@@ -67,7 +69,9 @@ data class FirestoreMedication(
         times = times,
         notes = notes,
         frequency = MedicationFrequency.valueOf(frequency),
-        specificDays = specificDays
+        specificDays = specificDays,
+        intervalDays = intervalDays,
+        startDate = startDate
     )
 
     companion object {
@@ -78,7 +82,9 @@ data class FirestoreMedication(
             times = med.times,
             notes = med.notes,
             frequency = med.frequency.name,
-            specificDays = med.specificDays
+            specificDays = med.specificDays,
+            intervalDays = med.intervalDays,
+            startDate = med.startDate
         )
     }
 }

@@ -46,14 +46,20 @@ data class MedicationExport(
     val times: List<String>,
     val notes: String?,
     val frequency: String,
-    val specificDays: List<Int>
+    val specificDays: List<Int>,
+    val intervalDays: Int? = null,
+    val startDate: String? = null
 ) {
     init {
         require(name.isNotBlank()) { "Medication name cannot be blank" }
         require(dosage.isNotBlank()) { "Medication dosage cannot be blank" }
-        require(times.isNotEmpty()) { "Medication must have at least one scheduled time" }
+        // Times are optional only for AsNeeded medications
+        val freq = try { MedicationFrequency.valueOf(frequency) } catch (e: Exception) { MedicationFrequency.Daily }
+        if (freq != MedicationFrequency.AsNeeded) {
+            require(times.isNotEmpty()) { "Medication must have at least one scheduled time" }
+        }
     }
-    
+
     fun toMedication(): Medication {
         return Medication(
             id = id,
@@ -62,7 +68,9 @@ data class MedicationExport(
             times = times,
             notes = notes,
             frequency = MedicationFrequency.valueOf(frequency),
-            specificDays = specificDays
+            specificDays = specificDays,
+            intervalDays = intervalDays,
+            startDate = startDate
         )
     }
 
@@ -75,7 +83,9 @@ data class MedicationExport(
                 times = med.times,
                 notes = med.notes,
                 frequency = med.frequency.name,
-                specificDays = med.specificDays
+                specificDays = med.specificDays,
+                intervalDays = med.intervalDays,
+                startDate = med.startDate
             )
         }
     }

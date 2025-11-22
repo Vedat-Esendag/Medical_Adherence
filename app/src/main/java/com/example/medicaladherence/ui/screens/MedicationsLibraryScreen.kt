@@ -272,8 +272,13 @@ fun MedicationLibraryCard(
                                     val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
                                     medication.specificDays.map { dayNames[it - 1] }.joinToString(", ")
                                 }
-                                com.example.medicaladherence.data.model.MedicationFrequency.Weekly -> "Weekly"
-                                com.example.medicaladherence.data.model.MedicationFrequency.EveryXDays -> "Every X days"
+                                com.example.medicaladherence.data.model.MedicationFrequency.Weekly -> {
+                                    val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                                    medication.specificDays.firstOrNull()?.let { dayNames[it - 1] } ?: "Weekly"
+                                }
+                                com.example.medicaladherence.data.model.MedicationFrequency.EveryXDays -> {
+                                    medication.intervalDays?.let { "Every $it day${if (it > 1) "s" else ""}" } ?: "Every X days"
+                                }
                                 com.example.medicaladherence.data.model.MedicationFrequency.AsNeeded -> "As needed"
                             }
                         } at $time",

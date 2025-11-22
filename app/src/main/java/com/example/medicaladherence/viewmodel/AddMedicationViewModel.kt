@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.util.UUID
 
 data class AddMedicationUiState(
@@ -21,9 +22,12 @@ data class AddMedicationUiState(
     val notes: String = "",
     val frequency: MedicationFrequency = MedicationFrequency.Daily,
     val specificDays: List<Int> = emptyList(),
+    val intervalDays: Int = 1,
+    val startDate: LocalDate = LocalDate.now(),
     val nameError: String? = null,
     val dosageError: String? = null,
     val timesError: String? = null,
+    val frequencyError: String? = null,
     val isValid: Boolean = false,
     val savedSuccessfully: Boolean = false
 )
@@ -89,11 +93,22 @@ class AddMedicationViewModel(
         validate()
     }
 
+    fun updateIntervalDays(days: Int) {
+        _uiState.value = _uiState.value.copy(intervalDays = days.coerceIn(1, 365))
+        validate()
+    }
+
+    fun updateStartDate(date: LocalDate) {
+        _uiState.value = _uiState.value.copy(startDate = date)
+        validate()
+    }
+
     private fun validate() {
         val state = _uiState.value
         var nameError: String? = null
         var dosageError: String? = null
         var timesError: String? = null
+        var frequencyError: String? = null
 
         if (state.name.isBlank()) {
             nameError = "Name is required"
@@ -103,16 +118,33 @@ class AddMedicationViewModel(
             dosageError = "Dosage is required"
         }
 
-        if (state.times.isEmpty()) {
+        // Times are optional only for AsNeeded medications
+        if (state.frequency != MedicationFrequency.AsNeeded && state.times.isEmpty()) {
             timesError = "At least one time is required"
         }
 
-        val isValid = nameError == null && dosageError == null && timesError == null
+        // Frequency-specific validation
+        when (state.frequency) {
+            MedicationFrequency.SpecificDays, MedicationFrequency.Weekly -> {
+                if (state.specificDays.isEmpty()) {
+                    frequencyError = "Please select at least one day"
+                }
+            }
+            MedicationFrequency.EveryXDays -> {
+                if (state.intervalDays < 1 || state.intervalDays > 365) {
+                    frequencyError = "Interval must be between 1 and 365 days"
+                }
+            }
+            else -> { /* No additional validation needed */ }
+        }
+
+        val isValid = nameError == null && dosageError == null && timesError == null && frequencyError == null
 
         _uiState.value = state.copy(
             nameError = nameError,
             dosageError = dosageError,
             timesError = timesError,
+            frequencyError = frequencyError,
             isValid = isValid
         )
     }
@@ -127,7 +159,9 @@ class AddMedicationViewModel(
                     times = medication.times,
                     notes = medication.notes ?: "",
                     frequency = medication.frequency,
-                    specificDays = medication.specificDays
+                    specificDays = medication.specificDays,
+                    intervalDays = medication.intervalDays ?: 1,
+                    startDate = medication.startDate?.let { LocalDate.parse(it) } ?: LocalDate.now()
                 )
                 validate()
             }
@@ -149,7 +183,9 @@ class AddMedicationViewModel(
             times = state.times,
             notes = state.notes.ifBlank { null },
             frequency = state.frequency,
-            specificDays = state.specificDays
+            specificDays = state.specificDays,
+            intervalDays = if (state.frequency == MedicationFrequency.EveryXDays) state.intervalDays else null,
+            startDate = if (state.frequency == MedicationFrequency.EveryXDays) state.startDate.toString() else null
         )
 
         viewModelScope.launch {
@@ -181,7 +217,9 @@ class AddMedicationViewModel(
             times = state.times,
             notes = state.notes.ifBlank { null },
             frequency = state.frequency,
-            specificDays = state.specificDays
+            specificDays = state.specificDays,
+            intervalDays = if (state.frequency == MedicationFrequency.EveryXDays) state.intervalDays else null,
+            startDate = if (state.frequency == MedicationFrequency.EveryXDays) state.startDate.toString() else null
         )
 
         viewModelScope.launch {

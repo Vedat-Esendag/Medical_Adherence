@@ -220,11 +220,67 @@ fun AddEditMedicationScreen(
                 }
             }
 
+            // Show day selector if Weekly is selected
+            if (uiState.frequency == MedicationFrequency.Weekly) {
+                item {
+                    Text(
+                        text = "Select day of week:",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                    days.forEachIndexed { index, day ->
+                        val dayNum = index + 1
+                        FilterChip(
+                            selected = uiState.specificDays.contains(dayNum),
+                            onClick = { viewModel.toggleDay(dayNum) },
+                            label = { Text(day, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+                }
+            }
+
+            // Show interval input if EveryXDays is selected
+            if (uiState.frequency == MedicationFrequency.EveryXDays) {
+                item {
+                    OutlinedTextField(
+                        value = uiState.intervalDays.toString(),
+                        onValueChange = {
+                            it.toIntOrNull()?.let { days -> viewModel.updateIntervalDays(days) }
+                        },
+                        label = { Text("Number of days") },
+                        placeholder = { Text("e.g., 3 for every 3 days") },
+                        isError = uiState.frequencyError != null,
+                        supportingText = { Text("Medication will be scheduled every ${uiState.intervalDays} day(s)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            }
+
+            // Show frequency error if any
+            if (uiState.frequencyError != null) {
+                item {
+                    Text(
+                        text = uiState.frequencyError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
+                }
+            }
+
             item {
                 // Times section with chips and add button
                 Column {
                 Text(
-                    text = "Times",
+                    text = if (uiState.frequency == MedicationFrequency.AsNeeded) "Times (optional)" else "Times",
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )

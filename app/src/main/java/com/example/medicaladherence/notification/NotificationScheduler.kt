@@ -3,6 +3,7 @@ package com.example.medicaladherence.notification
 import android.content.Context
 import androidx.work.*
 import com.example.medicaladherence.data.model.Medication
+import com.example.medicaladherence.data.model.MedicationFrequency
 import com.example.medicaladherence.data.repo.RepositoryProvider
 import kotlinx.coroutines.flow.first
 import java.time.LocalTime
@@ -13,6 +14,11 @@ import java.util.concurrent.TimeUnit
 class NotificationScheduler(private val context: Context) {
 
     fun scheduleMedicationNotifications(medication: Medication) {
+        // Don't schedule notifications for AsNeeded medications
+        if (medication.frequency == MedicationFrequency.AsNeeded) {
+            return
+        }
+
         medication.times.forEach { time ->
             scheduleNotificationForTime(medication, time)
         }
@@ -29,6 +35,10 @@ class NotificationScheduler(private val context: Context) {
             .putString(MedicationReminderWorker.KEY_DOSAGE, medication.dosage)
             .putString(MedicationReminderWorker.KEY_TIME, time)
             .putString(MedicationReminderWorker.KEY_MED_ID, medication.id)
+            .putString(MedicationReminderWorker.KEY_FREQUENCY, medication.frequency.name)
+            .putString(MedicationReminderWorker.KEY_SPECIFIC_DAYS, medication.specificDays.joinToString(","))
+            .putInt(MedicationReminderWorker.KEY_INTERVAL_DAYS, medication.intervalDays ?: 0)
+            .putString(MedicationReminderWorker.KEY_START_DATE, medication.startDate ?: "")
             .build()
 
         val delay = calculateDelayUntilTime(time)
@@ -52,6 +62,10 @@ class NotificationScheduler(private val context: Context) {
             .putString(MedicationReminderWorker.KEY_DOSAGE, medication.dosage)
             .putString(MedicationReminderWorker.KEY_TIME, time)
             .putString(MedicationReminderWorker.KEY_MED_ID, medication.id)
+            .putString(MedicationReminderWorker.KEY_FREQUENCY, medication.frequency.name)
+            .putString(MedicationReminderWorker.KEY_SPECIFIC_DAYS, medication.specificDays.joinToString(","))
+            .putInt(MedicationReminderWorker.KEY_INTERVAL_DAYS, medication.intervalDays ?: 0)
+            .putString(MedicationReminderWorker.KEY_START_DATE, medication.startDate ?: "")
             .build()
 
         val delay = calculateDelayUntilTime(time)
