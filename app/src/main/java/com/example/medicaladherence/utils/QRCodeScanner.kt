@@ -1,7 +1,6 @@
-package com.example.medicaladherence.util
+package com.example.medicaladherence.utils
 
 import com.example.medicaladherence.data.model.PatientDataExport
-import com.example.medicaladherence.utils.AppConstants
 
 object QRCodeScanner {
     

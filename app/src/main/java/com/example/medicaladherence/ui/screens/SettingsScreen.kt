@@ -25,7 +25,7 @@ import com.example.medicaladherence.viewmodel.SettingsViewModel
 import com.example.medicaladherence.ui.components.SetPinDialog
 import com.example.medicaladherence.ui.components.PinEntryDialog
 import com.example.medicaladherence.ui.components.PatientQRDisplayDialog
-import com.example.medicaladherence.util.QRCodeGenerator
+import com.example.medicaladherence.utils.QRCodeGenerator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
