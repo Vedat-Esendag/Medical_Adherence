@@ -1,119 +1,180 @@
 # Medical Adherence App
 
-A clean, minimal Android app prototype for tracking medication adherence. Built with Jetpack Compose, Material 3, and modern Android architecture.
+A modern Android medication tracking application for patients and caregivers, built with Jetpack Compose, Firebase, and MVVM architecture.
 
-## Features
+## 📱 Overview
 
-### Core Functionality
-- **Today's Doses**: View all scheduled medications for today with easy-to-use action buttons
-- **Quick Actions**: Mark doses as taken, missed, or snooze for 15 minutes
-- **Live Countdown**: Real-time countdown to your next scheduled dose
-- **Add Medications**: Simple form to add new medications with custom schedules
-- **Adherence Statistics**: Weekly adherence percentage and daily breakdown with visual bars
-- **Streak Tracking**: Monitor your consecutive days of perfect adherence
+This app helps patients track medication adherence and enables caregivers to monitor patient compliance remotely.
 
-### Accessibility & UX
-- **Large Touch Targets**: All interactive elements are ≥48dp for easy tapping
-- **Adjustable Font Size**: Settings screen with Normal and Large font options
-- **Calm Color Palette**: Soothing blue theme designed to reduce anxiety
-- **Friendly Copy**: Encouraging, non-judgmental language throughout
-- **Material 3 Design**: Modern, familiar interface following Google's latest design system
-- **Dynamic Colors**: Adapts to your device theme on Android 12+
+**Key Features**:
+- Patient medication tracking with real-time adherence statistics
+- Caregiver patient monitoring dashboard
+- Push notifications via Firebase Cloud Messaging
+- QR code-based patient data exchange
+- Offline-first with Firebase Firestore sync
 
-### Technical Highlights
-- **Single Activity Architecture**: Navigation-Compose for smooth transitions
-- **MVVM Pattern**: ViewModel + StateFlow for reactive, testable code
-- **In-Memory Data**: Pre-seeded with sample data for Maria and Ahmed
-- **No External Dependencies**: Pure Jetpack stack (no Room, WorkManager, etc.)
+## 🏗️ Tech Stack
 
-## Architecture
+- **Language**: Kotlin 2.0.21
+- **UI**: Jetpack Compose + Material 3
+- **Architecture**: MVVM with StateFlow
+- **Backend**: Firebase (Firestore + FCM + Anonymous Auth)
+- **Background**: WorkManager for scheduled reminders
+- **Navigation**: Compose Navigation
+- **Async**: Kotlin Coroutines + Flow
 
-```
-app/
-├── data/
-│   ├── model/           # Medication, DoseEvent data classes
-│   └── repository/      # FirebaseMedicationRepository, RepositoryProvider
-├── viewmodel/           # HomeViewModel, AddMedicationViewModel, etc.
-├── ui/
-│   ├── screens/         # HomeScreen, StatsScreen, SettingsScreen, etc.
-│   ├── components/      # Reusable DoseCard component
-│   ├── nav/             # Navigation graph
-│   └── theme/           # Material 3 theme, colors, typography
-└── MainActivity.kt
-```
+## 📚 Documentation
 
-## How to Run
+**For complete documentation, see [`/docs/`](docs/)**
 
-1. **Prerequisites**
-   - Android Studio Hedgehog (2023.1.1) or later
-   - Android SDK 29+ (minSdk: 29, targetSdk: 36)
-   - Kotlin 2.0.21
-   - Node.js 18+
-   - npm (comes with Node.js)
+### Quick Links:
+- **[00-EXAM-START-HERE.md](docs/00-EXAM-START-HERE.md)** ⭐ Start here for exam reference
+- **[EXAM_QUICK_INDEX.md](docs/EXAM_QUICK_INDEX.md)** - Master concept lookup (use Ctrl+F)
+- **[CONCEPT_TO_CODE_MAP.md](docs/CONCEPT_TO_CODE_MAP.md)** - Quick reference table
+- **[CODEBASE_REFERENCE.md](docs/CODEBASE_REFERENCE.md)** - Comprehensive code documentation
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture overview
+- **[FCM_SETUP.md](docs/FCM_SETUP.md)** - Firebase Cloud Messaging setup guide
 
-2. **Clone & Open**
+**Technical Deep Dives**: See [`/docs/technical/`](docs/technical/) for detailed documentation on architecture, state management, navigation, database, and more.
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Android Studio Hedgehog (2023.1.1) or later
+- Android SDK 29+ (minSdk: 29, targetSdk: 36)
+- Kotlin 2.0.21
+- Firebase project with Firestore and FCM enabled
+
+### Run the App
+
+1. **Clone the repository**
    ```bash
    git clone <repository-url>
    cd Medical_Adherence
    ```
-   - Open the project in Android Studio
+
+2. **Open in Android Studio**
+   - File → Open → Select project folder
    - Wait for Gradle sync to complete
 
-3. **Run**
-   - Connect an Android device or start an emulator
+3. **Add Firebase Configuration**
+   - Download `google-services.json` from Firebase Console
+   - Place in `app/` directory
+
+4. **Run**
+   - Connect Android device or start emulator
    - Click **Run** (green play button) or press `Shift + F10`
-   - The app will install and launch
 
-4. **Local FCM Server Setup (Required for Push Notifications)**
-   ```bash
-   # Navigate to local server directory
-   cd local-fcm-server
-   
-   # Install dependencies
-   npm install
-   
-   # Start the server (runs on port 3000)
-   npm start
-   ```
-   
-   **Expected output**: `Server listening on port 3000`
-   
-   **Note**: Keep this terminal running while testing push notifications.
+## 🏛️ Architecture
 
-5. **Explore**
-   - Home screen shows pre-seeded medications for Maria and Ahmed
-   - Try marking doses as taken/missed
-   - Add your own medication via the FAB (+) button
-   - View statistics to see weekly adherence and daily breakdown
-   - Adjust font size in Settings
+```
+MVVM Pattern:
+├── UI Layer (Jetpack Compose)
+│   ├── Screens (HomeScreen, StatsScreen, etc.)
+│   └── Components (DoseCard, PinDialog, etc.)
+├── ViewModel Layer (StateFlow)
+│   ├── HomeViewModel
+│   ├── AddMedicationViewModel
+│   ├── StatsViewModel
+│   └── [5 more ViewModels]
+└── Data Layer
+    ├── Repository (FirebaseMedicationRepository)
+    ├── Models (Medication, DoseEvent, PatientProfile)
+    └── Firebase (Firestore, FCM, Auth)
+```
 
-## Seed Data
+**Key Patterns**:
+- Single Activity Architecture
+- Repository Pattern for data abstraction
+- StateFlow for reactive UI state
+- Singleton pattern for repository instance
+- Flow for real-time Firestore listeners
 
-The app comes with sample data:
+## 📦 Project Structure
 
-- **Maria**: Amlodipine 5mg (07:00), Metoprolol 50mg (19:00), Aspirin 81mg (21:00)
-- **Ahmed**: Mesalamine 800mg (08:00), Azathioprine 50mg (22:00)
-- **Adherence**: ~80% for the past week with randomized dose events
+```
+app/src/main/java/com/example/medicaladherence/
+├── MainActivity.kt                 # Single activity entry point
+├── data/
+│   ├── model/                     # Domain models
+│   ├── repository/                # Data layer (Firebase)
+│   └── firebase/                  # Firebase integration
+├── viewmodel/                     # ViewModels (MVVM)
+├── ui/
+│   ├── screens/                   # Composable screens
+│   ├── components/                # Reusable components
+│   ├── theme/                     # Material 3 theme
+│   └── nav/                       # Navigation
+├── fcm/                           # Firebase Cloud Messaging
+├── notification/                  # WorkManager scheduling
+└── utils/                         # Utilities & constants
+```
 
-## Technologies Used
+## 🔥 Firebase Setup
 
-- **Kotlin** 2.0.21
-- **Jetpack Compose** (BOM 2024.09.00)
-- **Material 3** - Modern design system
-- **Navigation-Compose** 2.8.5 - Screen navigation
-- **ViewModel + StateFlow** - State management
-- **Coroutines** 1.9.0 - Asynchronous operations
+This app requires Firebase for:
+- **Firestore**: Cloud database for medications and dose events
+- **Firebase Auth**: Anonymous authentication
+- **FCM**: Push notifications from caregiver to patient
 
-## Future Enhancements
+**Setup Guide**: See [docs/FCM_SETUP.md](docs/FCM_SETUP.md) for complete Firebase configuration.
 
-This is a prototype. Potential improvements:
-- Persistent storage (Room database)
-- Real notifications with AlarmManager/WorkManager
-- Medication refill reminders
-- Multi-user support with authentication
-- Export adherence reports (PDF/CSV)
-- Integration with health data APIs
+## 👥 User Roles
 
-## License
+### Patient Mode
+- Track own medications
+- Mark doses as taken/missed
+- View adherence statistics and streaks
+- Generate QR code to share with caregiver
 
-This project is a prototype for demonstration purposes.
+### Caregiver Mode
+- Monitor multiple patients
+- View patient adherence in real-time
+- Send push notification reminders
+- Add patients via QR scan or PIN
+
+## 🧪 Testing
+
+- Unit tests: `app/src/test/`
+- Instrumented tests: `app/src/androidTest/`
+
+**Run tests**:
+```bash
+./gradlew test                    # Unit tests
+./gradlew connectedAndroidTest    # Instrumented tests
+```
+
+## 📱 Build & Deploy
+
+**Debug APK**:
+```bash
+./gradlew assembleDebug
+```
+
+**Release APK**:
+```bash
+./gradlew assembleRelease
+```
+
+**See**: [docs/technical/07-build-deploy.md](docs/technical/07-build-deploy.md) for detailed build instructions.
+
+## 🎓 For Exam Preparation
+
+This codebase is documented for exam reference. Start with:
+1. [docs/00-EXAM-START-HERE.md](docs/00-EXAM-START-HERE.md) - Exam homepage
+2. [docs/EXAM_QUICK_INDEX.md](docs/EXAM_QUICK_INDEX.md) - Fast concept lookup
+3. [docs/CONCEPT_TO_CODE_MAP.md](docs/CONCEPT_TO_CODE_MAP.md) - Quick reference table
+
+All code implementations are referenced with file:line numbers for easy exam lookup.
+
+## 📄 License
+
+This project is for educational purposes.
+
+---
+
+**Documentation**: `/docs/` folder  
+**Source Code**: `/app/` folder  
+**Firebase Functions**: `/functions/` folder  
+
+For detailed documentation, architecture explanations, and exam reference materials, see the `/docs/` directory.
